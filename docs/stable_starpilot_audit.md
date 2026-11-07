@@ -46,7 +46,7 @@ Existing lane-centering tests were run on this unchanged tree, without the repo 
 
 `38 passed` in `selfdrive/controls/tests/test_lane_centering.py`, `starpilot/common/tests/test_lane_centering_galaxy.py`, and `starpilot/common/tests/test_safe_mode_lane_centering.py`.
 
-No new floor test was added, because there is no implemented floor to lock. Panda and vehicle safety suites were not rebuilt here. They were not weakened.
+`test_lane_centering.py` is a regression check of that unchanged controller. It is not validation of a k=0.75 floor. An offline harness now compares competing readings of that floor without changing the controller. See section 4. Panda and vehicle safety suites were not rebuilt here. They were not weakened.
 
 ## 2. StarPilot BT: still blocked, no bridge added
 
@@ -175,3 +175,24 @@ Do these before any change that could steer, blink, or alter lane-change state. 
 5. Leave panda safety, blinker commands, and the current lane-change gates unchanged.
 
 Unresolved before any future off-by-default feature: a verified decode on this vehicle, a defined unknown state that is not "clear", a measured timeout, and an actual side closing-speed source. None of those is in the current mapping.
+
+## 4. Offline k=0.75 floor harness
+
+No production steering change. `LaneCenteringController` is unchanged. The harness in `selfdrive/controls/tests/lane_centering_model_path_floor_harness.py` is imported only by its test. Positive y and positive curvature are to the right. The controller command is model curvature plus a smoothed additive correction. The steady correction is `clip(2 * error_m / lookahead_m^2, ±0.004) * 0.30`, in 1/m.
+
+Nominal model blend weight is `1 - delta/raw` only while the constant-curvature identity holds and raw is not zero. With gain 0.30 and no clip or E2E reduction, that weight is 0.70. Curvature preservation, `command / model_curvature`, is a different number and is undefined at zero model curvature.
+
+The harness compares five readings and does not pick one for the car:
+
+| Reading | Steady correction |
+| --- | --- |
+| disabled | production correction, same frame |
+| `gain_floor` | same raw clamp, gain `min(0.30, 0.25)` |
+| `pre_gain_scale` | multiply raw by 0.25, then the production clamp and 0.30 gain |
+| `opposing_curvature_floor` | after the production correction, an opposing correction cannot remove more than 25 percent of the model curvature; same-direction corrections are unchanged; zero model curvature does not bind |
+| `scale_post_clamp_by_k` | production correction times 0.75 (75 percent of the correction, not of the model) |
+| `scale_post_clamp_by_one_minus_k` | production correction times 0.25 |
+
+Every enabled reading above stays at or under the production `|delta|` of `0.0012` 1/m. `controlsd` still applies `clip_curvature` afterward. At 20 m/s that jerk step is `0.000125` 1/m, so an unsmoothed jump to `0.0012` would be slewed. The production 0.4 s smoother's first step from zero is inside that jerk step. The harness does not remove the slew.
+
+A reported "~75 percent less steering away from an intended turn" was not supplied as a log, and the simulator was not reported as completing the turns. These CPU tests do not reproduce that figure. A logged replay and a finished simulator turn are still missing. Controls Mismatch was not tested and is not fixed.
