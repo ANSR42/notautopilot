@@ -16,6 +16,12 @@ ENGAGED_ICON_ASSET = "notautopilot/icon.png"
 ENGAGED_ICON_NATIVE = 1024
 # Display crop of the committed badge. The file itself is not modified.
 ENGAGED_ICON_CROP = (91, 93, 840)
+# Sampled from the committed icon disc. Too dark for a road ribbon:
+# about 1.6:1 against mid-gray pavement.
+BADGE_BLUE_RGB = (27, 77, 163)
+# Same hue as the badge, raised so a large path ribbon stays blue and
+# clears about 3:1 on dark pavement and about 2.8:1 on mid-gray pavement.
+PATH_BLUE_RGB = (89, 150, 255)
 
 
 def show_notautopilot_engaged_icon(state, lat_active: bool, long_active: bool,
@@ -42,6 +48,14 @@ def engaged_icon_from_ui(ui) -> bool:
     bool(getattr(car_control, "longActive", False)),
     bool(getattr(ui, "has_longitudinal_control", False)),
   )
+
+
+def engaged_path_rgba(rgba: tuple[int, int, int, int], engaged: bool) -> tuple[int, int, int, int]:
+  """Keep the path stop's alpha. Replace RGB only while actually engaged."""
+  red, green, blue, alpha = rgba
+  if not engaged:
+    return (red, green, blue, alpha)
+  return (*PATH_BLUE_RGB, alpha)
 
 
 def engaged_icon_source(texture_width: float, texture_height: float) -> tuple[float, float, float, float]:

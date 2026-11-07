@@ -11,6 +11,7 @@ from openpilot.selfdrive.locationd.calibrationd import HEIGHT_INIT
 from openpilot.selfdrive.ui.lib.starpilot_theme import get_param_color, get_theme_color, get_visual_color, is_stock_color_scheme, with_alpha
 from openpilot.selfdrive.ui.onroad.starpilot.rainbow_path import RainbowPath
 from openpilot.selfdrive.ui.lib.starpilot_visuals import LeadInfoMode, blend_colors, lead_indicator_enabled, lead_info_mode
+from openpilot.selfdrive.ui.onroad.notautopilot_engaged import engaged_icon_from_ui, engaged_path_rgba
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 from openpilot.selfdrive.ui.mici.onroad.starpilot_status import get_border_color
 from openpilot.system.ui.lib.application import gui_app, FontWeight
@@ -62,6 +63,7 @@ class ModelRenderer(Widget):
     super().__init__()
     self._longitudinal_control = False
     self._experimental_mode = False
+    self._engaged_path_blue = False
     self._blend_filter = FirstOrderFilter(1.0, 0.25, 1 / gui_app.target_fps)
     self._prev_allow_throttle = True
     self._lane_line_probs = np.zeros(4, dtype=np.float32)
@@ -453,11 +455,28 @@ class ModelRenderer(Widget):
                                  stock_scheme, edge_color, lane_color)
       draw_polygon(self._rect, road_edge.projected_points, color)
 
+  def _paint_engaged_path(self, color: rl.Color) -> rl.Color:
+    red, green, blue, alpha = engaged_path_rgba((color.r, color.g, color.b, color.a), self._engaged_path_blue)
+    return rl.Color(red, green, blue, alpha)
+
+  def _paint_engaged_gradient(self, gradient: Gradient) -> Gradient:
+    if not self._engaged_path_blue:
+      return gradient
+    return Gradient(
+      start=gradient.start,
+      end=gradient.end,
+      colors=[self._paint_engaged_path(color) for color in gradient.colors],
+      stops=list(gradient.stops),
+    )
+
   def _draw_path(self, sm):
-    """Draw path with dynamic coloring based on mode and throttle state."""
+    """Draw the driving-path ribbon. Engagement changes its color only."""
     if not self._path.projected_points.size:
       return
 
+    # Same gate as the blue wheel. Always On Lateral and override stay on the
+    # existing ribbon colors, including the disengaged black fill.
+    self._engaged_path_blue = engaged_icon_from_ui(ui_state)
     lateral_ui_active = ui_state.status == UIStatus.ENGAGED or ui_state.always_on_lateral_active
     allow_throttle = sm['longitudinalPlan'].allowThrottle or not self._longitudinal_control or ui_state.always_on_lateral_active
     self._blend_filter.update(int(allow_throttle))
@@ -466,33 +485,33 @@ class ModelRenderer(Widget):
 
     if use_rainbow:
       if len(self._exp_gradient.colors) > 1:
-        draw_polygon(self._rect, self._path.projected_points, gradient=self._exp_gradient)
+        draw_polygon(self._rect, self._path.projected_points, gradient=self._paint_engaged_gradient(self._exp_gradient))
       else:
         fallback = get_border_color(ui_state)
-        draw_polygon(self._rect, self._path.projected_points, rl.Color(fallback.r, fallback.g, fallback.b, 90))
+        draw_polygon(self._rect, self._path.projected_points, self._paint_engaged_path(rl.Color(fallback.r, fallback.g, fallback.b, 90)))
     elif use_accel_path:
       if self._experimental_mode:
         if len(self._exp_gradient.colors) > 1:
-          draw_polygon(self._rect, self._path.projected_points, gradient=self._exp_gradient)
+          draw_polygon(self._rect, self._path.projected_points, gradient=self._paint_engaged_gradient(self._exp_gradient))
         else:
           fallback = get_border_color(ui_state)
-          draw_polygon(self._rect, self._path.projected_points, rl.Color(fallback.r, fallback.g, fallback.b, 90))
+          draw_polygon(self._rect, self._path.projected_points, self._paint_engaged_path(rl.Color(fallback.r, fallback.g, fallback.b, 90)))
       else:
         blend_factor = round(self._blend_filter.x * 100) / 100
         blended_colors = self._blend_colors(NO_THROTTLE_COLORS, THROTTLE_COLORS, blend_factor)
         if lateral_ui_active and blend_factor < 1.0:
           blended_colors = self._blend_colors(blended_colors, THROTTLE_COLORS, 0.65)
-        self._path_gradient.colors = blended_colors
         if ui_state.status == UIStatus.DISENGAGED and not ui_state.always_on_lateral_active:
-          draw_polygon(self._rect, self._path.projected_points, rl.Color(0, 0, 0, 90))
+          draw_polygon(self._rect, self._path.projected_points, self._paint_engaged_path(rl.Color(0, 0, 0, 90)))
         else:
+          self._path_gradient.colors = [self._paint_engaged_path(color) for color in blended_colors]
           draw_polygon(self._rect, self._path.projected_points, gradient=self._path_gradient)
     else:
       path_color = get_visual_color(self._params, "PathColor", "Path", rl.Color(48, 255, 156, 255))
       self._path_gradient.colors = [
-        with_alpha(path_color, path_color.a),
-        with_alpha(path_color, int(path_color.a * 0.55)),
-        with_alpha(path_color, int(path_color.a * 0.10)),
+        self._paint_engaged_path(with_alpha(path_color, path_color.a)),
+        self._paint_engaged_path(with_alpha(path_color, int(path_color.a * 0.55))),
+        self._paint_engaged_path(with_alpha(path_color, int(path_color.a * 0.10))),
       ]
       draw_polygon(self._rect, self._path.projected_points, gradient=self._path_gradient)
 

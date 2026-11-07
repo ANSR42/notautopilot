@@ -11,6 +11,7 @@ from openpilot.selfdrive.ui.lib.starpilot_theme import get_param_color, get_them
 from openpilot.selfdrive.ui.onroad.radar_tracks import project_radar_points
 from openpilot.selfdrive.ui.onroad.starpilot.rainbow_path import RainbowPath
 from openpilot.selfdrive.ui.lib.starpilot_visuals import lead_indicator_enabled
+from openpilot.selfdrive.ui.onroad.notautopilot_engaged import engaged_icon_from_ui, engaged_path_rgba
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.shader_polygon import draw_polygon, Gradient
@@ -64,6 +65,7 @@ class ModelRenderer(Widget):
     super().__init__()
     self._longitudinal_control = False
     self._experimental_mode = False
+    self._engaged_path_blue = False
     self._blend_filter = FirstOrderFilter(1.0, 0.25, 1 / gui_app.target_fps)
     self._prev_allow_throttle = True
     self._lane_line_probs = np.zeros(4, dtype=np.float32)
@@ -434,11 +436,29 @@ class ModelRenderer(Widget):
       color = rl.Color(255, 0, 0, int(alpha * 255))
       draw_polygon(self._rect, road_edge.projected_points, color)
 
+  def _paint_engaged_path(self, color: rl.Color) -> rl.Color:
+    red, green, blue, alpha = engaged_path_rgba((color.r, color.g, color.b, color.a), self._engaged_path_blue)
+    return rl.Color(red, green, blue, alpha)
+
+  def _paint_engaged_gradient(self, gradient: Gradient) -> Gradient:
+    if not self._engaged_path_blue:
+      return gradient
+    return Gradient(
+      start=gradient.start,
+      end=gradient.end,
+      colors=[self._paint_engaged_path(color) for color in gradient.colors],
+      stops=list(gradient.stops),
+    )
+
   def _draw_path(self, sm):
-    """Draw path with dynamic coloring based on mode and throttle state."""
+    """Draw the driving-path ribbon. Engagement changes its color only."""
     if not self._path.projected_points.size:
       return
 
+    # Same gate as the blue wheel badge. Disengaged, override, pre-enable,
+    # soft-disable, Always On Lateral, and a stale carControl sample stay
+    # on the existing colors. This does not change model desire or the path shape.
+    self._engaged_path_blue = engaged_icon_from_ui(ui_state)
     allow_throttle = sm['longitudinalPlan'].allowThrottle or not self._longitudinal_control
     self._blend_filter.update(int(allow_throttle))
 
@@ -446,22 +466,22 @@ class ModelRenderer(Widget):
     use_accel_path = not use_rainbow and self._use_accel_path
     if use_rainbow:
       if len(self._exp_gradient.colors) > 1:
-        draw_polygon(self._rect, self._path.projected_points, gradient=self._exp_gradient)
+        draw_polygon(self._rect, self._path.projected_points, gradient=self._paint_engaged_gradient(self._exp_gradient))
       else:
-        draw_polygon(self._rect, self._path.projected_points, rl.Color(48, 255, 156, 90))
+        draw_polygon(self._rect, self._path.projected_points, self._paint_engaged_path(rl.Color(48, 255, 156, 90)))
     elif use_accel_path:
       if self._experimental_mode:
         if len(self._exp_gradient.colors) > 1:
-          draw_polygon(self._rect, self._path.projected_points, gradient=self._exp_gradient)
+          draw_polygon(self._rect, self._path.projected_points, gradient=self._paint_engaged_gradient(self._exp_gradient))
         else:
-          draw_polygon(self._rect, self._path.projected_points, rl.Color(255, 255, 255, 30))
+          draw_polygon(self._rect, self._path.projected_points, self._paint_engaged_path(rl.Color(255, 255, 255, 30)))
       else:
         blend_factor = round(self._blend_filter.x * 100) / 100
         blended_colors = self._blend_colors(NO_THROTTLE_COLORS, THROTTLE_COLORS, blend_factor)
         gradient = Gradient(
           start=(0.0, 1.0),
           end=(0.0, 0.0),
-          colors=blended_colors,
+          colors=[self._paint_engaged_path(color) for color in blended_colors],
           stops=[0.0, 0.5, 1.0],
         )
         draw_polygon(self._rect, self._path.projected_points, gradient=gradient)
@@ -471,9 +491,9 @@ class ModelRenderer(Widget):
         start=(0.0, 1.0),
         end=(0.0, 0.0),
         colors=[
-          with_alpha(path_color, path_color.a),
-          with_alpha(path_color, int(path_color.a * 0.55)),
-          with_alpha(path_color, int(path_color.a * 0.10)),
+          self._paint_engaged_path(with_alpha(path_color, path_color.a)),
+          self._paint_engaged_path(with_alpha(path_color, int(path_color.a * 0.55))),
+          self._paint_engaged_path(with_alpha(path_color, int(path_color.a * 0.10))),
         ],
         stops=[0.0, 0.5, 1.0],
       )
