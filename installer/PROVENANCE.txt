@@ -1,0 +1,39 @@
+Comma setup installer for ANSR42/notautopilot branch cursor/stable-audit-report-1491.
+
+What the comma setup screen accepts
+  system/ui/tici_setup.py and system/ui/mici_setup.py download one URL and keep
+  the body only when the first four bytes are the ELF magic 7f 45 4c 46. They
+  then move that file to /tmp/installer. This is not a shell script.
+
+Base artifact
+  Public URL: https://installer.comma.ai/ANSR42/cursor%2Fstable-audit-report-1491
+  Request: User-Agent AGNOSSetup-19.6, no X-openpilot-device-type header.
+  SHA-256: ceb64a074a1a6d18bf0b9dc88d95e69582bc75b04229645a7f01b455c3a90ce7
+  Size: 2051392 bytes
+  ELF64, little endian, OS ABI GNU, AArch64, PIE, interpreter /lib/ld-linux-aarch64.so.1
+  The same request with X-openpilot-device-type: mici returns HTTP 409 and the
+  text "This version of openpilot is not compatible with this device." That
+  check looks up https://github.com/ANSR42/openpilot, which is HTTP 404. No
+  device header was invented to get past that response.
+
+Patch
+  installer/build_comma_installer.py replaces the single padded slot
+  https://github.com/ANSR42/openpilot.git
+  with
+  https://github.com/ANSR42/notautopilot.git
+  The slot is the '?'-terminated string in selfdrive/ui/installer/installer.cc.
+  File size stays 2051392. The branch slot stays cursor/stable-audit-report-1491.
+  Seventeen bytes differ, all inside that URL slot. No other bytes change.
+  Output SHA-256: 40486647426c251fbb446e410f675533d8cdcb294d86cc083d7757d69b71e6e8
+
+Fail-safe already in the upstream installer
+  cloneFinished asserts the git command returned 0. A failed clone does not
+  move a partial tree into /data/openpilot. branchMigration only renames
+  release3 and release3-staging, so this branch name is not rewritten.
+
+Not done
+  The ELF was not executed. A comma four was not connected. StarPilot's
+  tools/agnos/patch_system_reset_image.py says the installer.comma.ai binary
+  targets Wayland and cannot run in that custom AGNOS. This ELF contains no
+  "wayland" string; whether StarPilot's AGNOS setup will run it was not tested.
+  Stock comma setup is the surface this file is for.
