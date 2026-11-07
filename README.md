@@ -1,6 +1,6 @@
 # notautopilot
 
-![NOTAUTOPILOT — a StarPilot branch. Unofficial project. what autopilot should've been.](selfdrive/assets/notautopilot/banner.jpg)
+![NOTAUTOPILOT — a StarPilot branch. Unofficial project. what Tesla's autopilot should've been.](selfdrive/assets/notautopilot/banner.jpg)
 
 by [@ANSR42](https://x.com/ANSR42)
 

@@ -19,8 +19,13 @@ State = log.SelfdriveState.OpenpilotState
 ROOT = Path(__file__).resolve().parents[3]
 BANNER = ROOT / "selfdrive" / "assets" / "notautopilot" / "banner.jpg"
 ICON = ROOT / "selfdrive" / "assets" / "notautopilot" / "icon.png"
-BANNER_SHA256 = "446df6776745f84a50af42bae549b69ffbce0dbfa72526fed9b9c5631e855bc9"
-TAGLINE = "what autopilot should've been"
+BANNER_SHA256 = "02679f2d9993543925f415bdd18f445ac8a6b82b1575d6027d2d80c7e4fe5dde"
+TAGLINE = "what Tesla's autopilot should've been"
+TAGLINE_FONT = "/usr/share/fonts/truetype/macos/Inter-Regular.ttf"
+TAGLINE_SIZE = 40
+TAGLINE_TRACKING = 0.6
+TAGLINE_COLOR = (236, 236, 238)
+TAGLINE_BOTTOM_MARGIN = 68
 ICON_SHA256 = "635a6eb8c79b61a8f319811e2a51250e303c1ad9e8fe1e00283712831bd370a3"
 
 
@@ -37,32 +42,50 @@ def test_banner_and_icon_are_the_supplied_bytes():
   assert TAGLINE in readme
 
 
+def _draw_tagline(image: Image.Image) -> None:
+  draw = ImageDraw.Draw(image)
+  font = ImageFont.truetype(TAGLINE_FONT, TAGLINE_SIZE)
+  advances = [draw.textbbox((0, 0), character, font=font)[2] for character in TAGLINE]
+  total = sum(advances) + TAGLINE_TRACKING * (len(TAGLINE) - 1)
+  x = (image.width - total) / 2
+  y = image.height - TAGLINE_BOTTOM_MARGIN - draw.textbbox((0, 0), TAGLINE, font=font)[3]
+  cursor = x
+  for character, advance in zip(TAGLINE, advances, strict=True):
+    draw.text((cursor, y), character, font=font, fill=TAGLINE_COLOR)
+    cursor += advance + TAGLINE_TRACKING
+
+
 def test_banner_tagline_matches_the_rendered_line():
   banner = Image.open(BANNER).convert("RGB")
   reference = Image.new("RGB", banner.size, (0, 0, 0))
-  draw = ImageDraw.Draw(reference)
-  font = ImageFont.truetype("/usr/share/fonts/truetype/macos/Inter-Medium.ttf", 30)
-  origin = (552, 544)
-  draw.text(origin, TAGLINE, font=font, fill=(220, 220, 222))
-  box = draw.textbbox(origin, TAGLINE, font=font)
-  assert box[2] < banner.width - 8 and box[3] < banner.height - 8
+  _draw_tagline(reference)
+  xs = []
+  ys = []
   ink = 0
   matched = 0
-  for y in range(box[1], box[3]):
-    for x in range(box[0], box[2]):
+  for y in range(banner.height):
+    for x in range(banner.width):
       if min(reference.getpixel((x, y))) < 160:
         continue
       ink += 1
-      red, green, blue = banner.getpixel((x, y))
-      if min(red, green, blue) >= 140:
+      xs.append(x)
+      ys.append(y)
+      if min(banner.getpixel((x, y))) >= 140:
         matched += 1
-  assert ink > 2000
+  assert ink > 4000
   assert matched == ink
+  assert abs((min(xs) + max(xs)) / 2 - banner.width / 2) < 8
+  assert banner.height - 1 - max(ys) == TAGLINE_BOTTOM_MARGIN
+  assert min(ys) > 580
+  # Original NOTAUTOPILOT lettering stays in its band. The tagline does not enter it.
+  title_ink = 0
+  for y in range(297, 354):
+    for x in range(549, 1210):
+      if min(banner.getpixel((x, y))) > 180:
+        title_ink += 1
+  assert title_ink > 10000
   attribution = [banner.getpixel((x, 502)) for x in range(552, 740)]
   assert sum(min(pixel) > 140 for pixel in attribution) > 40
-  # The line sits under the attribution and does not enter the wheel.
-  assert box[0] >= 540
-  assert box[1] > 520
 
 
 def test_badge_requires_enabled_state_and_lateral_actuation():
