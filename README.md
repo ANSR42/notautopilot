@@ -1,3 +1,9 @@
+# notautopilot
+
+![NOTAUTOPILOT — a StarPilot branch. Unofficial project.](selfdrive/assets/notautopilot/banner.jpg)
+
+This repository is **notautopilot**, an unofficial branch of StarPilot. It is not maintained or endorsed by StarPilot or comma.ai. The StarPilot name, upstream attribution, licenses, and documentation below stay in place. The wheel mark in the banner is a project design asset, not an official Tesla emblem.
+
 # StarPilot
 
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue?logo=readthedocs&logoColor=white)](https://deepwiki.com/StarPilotHQ/StarPilot)

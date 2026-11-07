@@ -10,6 +10,11 @@ from openpilot.selfdrive.ui.lib.speed_limit_pulse import SpeedLimitPulse
 from openpilot.selfdrive.ui.onroad.starpilot.navigation_card import NavigationCardRenderer
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 from openpilot.selfdrive.ui.onroad.exp_button import get_wheel_tint
+from openpilot.selfdrive.ui.onroad.notautopilot_engaged import (
+  ENGAGED_ICON_ASSET,
+  engaged_icon_from_ui,
+  engaged_icon_source,
+)
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.utils import draw_circle_gradient_compat
 from openpilot.system.ui.lib.multilang import tr
@@ -155,6 +160,7 @@ class HudRenderer(Widget):
 
     self._txt_wheel: rl.Texture = gui_app.texture('icons_mici/wheel.png', 50, 50)
     self._txt_wheel_critical: rl.Texture = gui_app.texture('icons_mici/wheel_critical.png', 50, 50)
+    self._txt_engaged: rl.Texture = gui_app.texture(ENGAGED_ICON_ASSET, 50, 50)
     self._txt_exclamation_point: rl.Texture = gui_app.texture('icons_mici/exclamation_point.png', 44, 44)
     self._txt_egpu_loading: rl.Texture = gui_app.texture('icons_mici/egpu_loading.png', 60, 44)
     self._txt_egpu_green: rl.Texture = gui_app.texture('icons_mici/egpu_green.png', 60, 44)
@@ -361,7 +367,9 @@ class HudRenderer(Widget):
     rl.draw_texture_ex(icon, pos, 0.0, 1.0, rl.Color(255, 255, 255, int(255 * opacity * alpha)))
 
   def _draw_steering_wheel(self, rect: rl.Rectangle) -> None:
-    wheel_txt = self._txt_wheel_critical if self._show_wheel_critical else self._txt_wheel
+    # The critical wheel and its exclamation stay in front of the engagement badge.
+    show_engaged_badge = engaged_icon_from_ui(ui_state) and not self._show_wheel_critical
+    wheel_txt = self._txt_engaged if show_engaged_badge else self._txt_wheel_critical if self._show_wheel_critical else self._txt_wheel
     lateral_ui_active = ui_state.status == UIStatus.ENGAGED or ui_state.always_on_lateral_active
 
     if self._show_wheel_critical:
@@ -388,12 +396,16 @@ class HudRenderer(Widget):
       wheel_txt.height + turn_intent_margin * 2,
     ))
 
-    src_rect = rl.Rectangle(0, 0, wheel_txt.width, wheel_txt.height)
+    if show_engaged_badge:
+      source_x, source_y, source_w, source_h = engaged_icon_source(wheel_txt.width, wheel_txt.height)
+      src_rect = rl.Rectangle(source_x, source_y, source_w, source_h)
+    else:
+      src_rect = rl.Rectangle(0, 0, wheel_txt.width, wheel_txt.height)
     dest_rect = rl.Rectangle(pos_x, pos_y, wheel_txt.width, wheel_txt.height)
     origin = (wheel_txt.width / 2, wheel_txt.height / 2)
 
     # color and draw
-    base_color = self._wheel_tint if self._wheel_tint is not None and not self._show_wheel_critical else rl.Color(255, 255, 255, 255)
+    base_color = rl.Color(255, 255, 255, 255) if show_engaged_badge or self._wheel_tint is None or self._show_wheel_critical else self._wheel_tint
     color = rl.Color(base_color.r, base_color.g, base_color.b, int(self._wheel_alpha_filter.x))
     rl.draw_texture_pro(wheel_txt, src_rect, dest_rect, origin, rotation, color)
 
