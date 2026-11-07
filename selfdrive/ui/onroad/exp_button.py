@@ -12,8 +12,11 @@ from openpilot.starpilot.common.experimental_state import (
     sync_manual_ce_state,
 )
 from openpilot.selfdrive.ui.onroad.notautopilot_engaged import (
+    AVAILABLE,
+    AVAILABLE_ICON_ASSET,
+    ENGAGED,
     ENGAGED_ICON_ASSET,
-    engaged_icon_from_ui,
+    badge_presentation_from_ui,
     engaged_icon_source,
 )
 
@@ -60,6 +63,7 @@ class ExpButton(Widget):
     self._txt_wheel: rl.Texture = gui_app.texture('icons/chffr_wheel.png', icon_size, icon_size)
     self._txt_exp: rl.Texture = gui_app.texture('icons/experimental.png', icon_size, icon_size)
     self._txt_engaged: rl.Texture = gui_app.texture(ENGAGED_ICON_ASSET, icon_size, icon_size)
+    self._txt_available: rl.Texture = gui_app.texture(AVAILABLE_ICON_ASSET, icon_size, icon_size)
     self._rect = rl.Rectangle(0, 0, button_size, button_size)
 
     self._steer_angle_filter = FirstOrderFilter(0.0, 0.1, 1 / gui_app.target_fps)
@@ -154,14 +158,17 @@ class ExpButton(Widget):
       tint = rl.Color(wheel_tint.r, wheel_tint.g, wheel_tint.b, self._white_color.a)
 
     rl.draw_circle(center_x, center_y, self._rect.width / 2, self._bg_color)
-    if engaged_icon_from_ui(ui_state):
-      # The badge already carries its own blue disc. Do not tint it, and do
-      # not replace a critical safety icon: this widget has none.
-      source_x, source_y, source_w, source_h = engaged_icon_source(self._txt_engaged.width, self._txt_engaged.height)
+    presentation = badge_presentation_from_ui(ui_state)
+    custom_badge = self._txt_engaged if presentation == ENGAGED else self._txt_available if presentation == AVAILABLE else None
+    if custom_badge is not None:
+      # The badge carries its own disc. Do not tint the blue one. The gray one
+      # is the same artwork recolored, shown only while engageable and disengaged.
+      # This widget has no critical safety icon. The button remains clickable.
+      source_x, source_y, source_w, source_h = engaged_icon_source(custom_badge.width, custom_badge.height)
       source_rect = rl.Rectangle(source_x, source_y, source_w, source_h)
       dest_rect = rl.Rectangle(center_x, center_y, self._rect.width, self._rect.width)
       origin = rl.Vector2(self._rect.width / 2, self._rect.width / 2)
-      rl.draw_texture_pro(self._txt_engaged, source_rect, dest_rect, origin, 0.0, self._white_color)
+      rl.draw_texture_pro(custom_badge, source_rect, dest_rect, origin, 0.0, self._white_color)
       return
     if tint is not None:
       if exp_mode:

@@ -13,6 +13,7 @@ from cereal import log
 OpenpilotState = log.SelfdriveState.OpenpilotState
 
 ENGAGED_ICON_ASSET = "notautopilot/icon.png"
+AVAILABLE_ICON_ASSET = "notautopilot/icon_available.png"
 ENGAGED_ICON_NATIVE = 1024
 # Display crop of the committed badge. The file itself is not modified.
 ENGAGED_ICON_CROP = (91, 93, 840)
@@ -33,6 +34,54 @@ def show_notautopilot_engaged_icon(state, lat_active: bool, long_active: bool,
   if openpilot_longitudinal and not long_active:
     return False
   return True
+
+
+HIDDEN = "hidden"
+AVAILABLE = "available"
+ENGAGED = "engaged"
+
+
+def badge_presentation(state, lat_active: bool, long_active: bool, openpilot_longitudinal: bool,
+                       engageable, state_valid: bool, car_valid: bool, always_on_lateral: bool) -> str:
+  """Custom wheel only. Stock controls and the critical wheel stay with the caller.
+
+  AVAILABLE is selfdriveState.engageable while disengaged. That flag is the
+  published "no no-entry event" result, which already includes speed when the
+  car port emits belowEngageSpeed. Tesla Model Y does not: minEnableSpeed stays
+  at the CarSpecs default of -1 m/s, so this does not invent a 10 mph gate.
+  A missing or invalid selfdriveState or carState sample is HIDDEN, because
+  car no-entry events are not applied when CAN is invalid.
+  """
+  if show_notautopilot_engaged_icon(state, lat_active, long_active, openpilot_longitudinal):
+    return ENGAGED
+  if not state_valid or not car_valid or always_on_lateral:
+    return HIDDEN
+  if state != OpenpilotState.disabled:
+    return HIDDEN
+  if engageable is True:
+    return AVAILABLE
+  return HIDDEN
+
+
+def badge_presentation_from_ui(ui) -> str:
+  sm = getattr(ui, "sm", {})
+  valid = getattr(sm, "valid", None)
+  state_valid = isinstance(valid, dict) and bool(valid.get("selfdriveState")) and _contains(sm, "selfdriveState")
+  car_valid = isinstance(valid, dict) and bool(valid.get("carState")) and _contains(sm, "carState")
+  selfdrive_state = sm["selfdriveState"] if state_valid else None
+  car_control = None
+  if isinstance(valid, dict) and valid.get("carControl") and _contains(sm, "carControl"):
+    car_control = sm["carControl"]
+  return badge_presentation(
+    getattr(selfdrive_state, "state", None),
+    bool(getattr(car_control, "latActive", False)),
+    bool(getattr(car_control, "longActive", False)),
+    bool(getattr(ui, "has_longitudinal_control", False)),
+    getattr(selfdrive_state, "engageable", None),
+    state_valid,
+    car_valid,
+    bool(getattr(ui, "always_on_lateral_active", False)),
+  )
 
 
 def engaged_icon_from_ui(ui) -> bool:

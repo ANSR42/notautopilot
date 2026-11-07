@@ -13,6 +13,7 @@ from openpilot.starpilot.common.model_lab import model_lab_pair_display_name_fro
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos
 from openpilot.system.ui.lib.multilang import tr, trn
+from openpilot.selfdrive.ui.lib.notautopilot_wordmark import WORDMARK_ASSET, WORDMARK_NATIVE, fitted_size
 from openpilot.system.ui.widgets.label import gui_label
 from openpilot.system.ui.widgets import Widget
 
@@ -34,6 +35,7 @@ class HomeLayout(Widget):
   def __init__(self):
     super().__init__()
     self.params = ui_state.ui_params
+    self._wordmark = gui_app.texture(WORDMARK_ASSET, WORDMARK_NATIVE[0], WORDMARK_NATIVE[1])
 
     self.update_alert = UpdateAlert()
     self.offroad_alert = OffroadAlert()
@@ -182,30 +184,34 @@ class HomeLayout(Widget):
 
     version_rect = rl.Rectangle(self.header_rect.x + self.header_rect.width - version_text_width, self.header_rect.y,
                                 version_text_width, self.header_rect.height)
-    brand_text = "StarPilot"
-    detail_text = self._version_text.removeprefix(brand_text)
-    brand_font = gui_app.font(FontWeight.BRAND)
+    # Version descriptions still begin with the upstream name. The visible
+    # wordmark is the banner title artwork, not a retyped font.
+    detail_text = self._version_text.removeprefix("StarPilot")
     version_font_size = 48
-
-    def _measure_header(font_size: int) -> tuple[rl.Vector2, rl.Vector2]:
-      return (measure_text_cached(brand_font, brand_text, font_size + 2),
-              measure_text_cached(font, detail_text, font_size))
-
-    brand_size, detail_size = _measure_header(version_font_size)
-    total_width = brand_size.x + detail_size.x
-    if total_width > version_rect.width:
-      version_font_size = max(32, int(version_font_size * version_rect.width / total_width))
-      brand_size, detail_size = _measure_header(version_font_size)
-      total_width = brand_size.x + detail_size.x
+    detail_size = measure_text_cached(font, detail_text, version_font_size)
+    max_mark_w = max(80.0, version_rect.width - detail_size.x - 12)
+    mark_w, mark_h = fitted_size(self._wordmark.width, self._wordmark.height, max_mark_w, version_rect.height - 12)
+    total_width = mark_w + (detail_size.x if detail_text else 0)
+    if total_width > version_rect.width and detail_text:
+      version_font_size = max(32, int(version_font_size * (version_rect.width - mark_w) / max(detail_size.x, 1)))
+      detail_size = measure_text_cached(font, detail_text, version_font_size)
+      total_width = mark_w + detail_size.x
 
     rendered_width = min(total_width, version_rect.width)
     text_x = version_rect.x + version_rect.width - rendered_width
-    brand_rect = rl.Rectangle(text_x, version_rect.y, min(brand_size.x, rendered_width), version_rect.height)
-    gui_label(brand_rect, brand_text, version_font_size + 2, rl.WHITE, font_weight=FontWeight.BRAND, elide_right=False)
+    mark_y = version_rect.y + (version_rect.height - mark_h) / 2
+    rl.draw_texture_pro(
+      self._wordmark,
+      rl.Rectangle(0, 0, self._wordmark.width, self._wordmark.height),
+      rl.Rectangle(text_x, mark_y, mark_w, mark_h),
+      rl.Vector2(0, 0),
+      0.0,
+      rl.WHITE,
+    )
 
-    detail_width = max(0.0, rendered_width - brand_rect.width)
+    detail_width = max(0.0, rendered_width - mark_w)
     if detail_text and detail_width > 0:
-      detail_rect = rl.Rectangle(brand_rect.x + brand_rect.width, version_rect.y, detail_width, version_rect.height)
+      detail_rect = rl.Rectangle(text_x + mark_w + 8, version_rect.y, detail_width, version_rect.height)
       gui_label(detail_rect, detail_text, version_font_size, rl.WHITE, font_weight=FontWeight.MEDIUM)
 
   def _render_home_content(self):
