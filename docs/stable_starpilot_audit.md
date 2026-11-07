@@ -48,15 +48,35 @@ Existing lane-centering tests were run on this unchanged tree, without the repo 
 
 No new floor test was added, because there is no implemented floor to lock. Panda and vehicle safety suites were not rebuilt here. They were not weakened.
 
-## 2. StarPilot BT: bridge gap, no backport
+## 2. StarPilot BT: still blocked, no bridge added
 
-The App Store listing [StarPilot BT](https://apps.apple.com/ca/app/starpilot-bt/id6821039119) (Apple id `6821039119`, seller Nathan Hubbard) is version **1.2.2**, listed as updated two days before 2026-11-07. Its own text requires a comma device running a compatible StarPilot build **with the Bluetooth bridge**. The listing is not evidence that this Stable tree speaks that app's protocol.
+Checked again on 2026-11-07. No Bluetooth bridge, session adapter, or companion route was added. Controls Mismatch is a separate panda safety-model disagreement and is not affected by this gap.
 
-Stable has no `galaxy_bluetooth` bridge, no iOS companion tree, and no `/api/companion/web-manifest`, `/api/auth/session`, or `/api/bluetooth/action` route. Its Bluetooth API is `GET /api/bluetooth/status` and `POST /api/bluetooth/<operation>` with `power`, `scan`, `pair`, `connect`, `disconnect`, `forget`, `select_audio`, `test_audio`, and `pairing_response`. Galaxy session state is `GET /api/galaxy/session` (`paired`, `sessionToken`, `cookieName`), not the bridge's required `authenticated` plus `localAccess` cookie contract.
+### Version names are different products
 
-Dom's bridge (`openpilot/starpilot/galaxy_bluetooth`, Dom tip above) is a BlueZ GATT server for service `bd490001-6dc1-4de7-a7d0-6cdb441f7650`. Health is protocol `1` and transport `bluetooth`. It authenticates with `GET /api/auth/session` and proxies relative `/api/` paths to local Galaxy. Its in-tree iOS `Info.plist` is **StarPilot BT 1.0.1**, not store 1.2.2. The Dom README pins app source to `natehuby76/ios-clone` commit `081aa0e`, whose plist is **Galaxy Bluetooth 0.2.2**. Public `integrated-latest` (`081bd2045ed7`, 2026-11-06) is **StarPilot BT 1.0.6**, with the same Wire.swift health gate (`protocol == 1`, `transport == bluetooth`) as the Dom tree copy. None of those public version strings is 1.2.2, so the store binary was not compared.
+| Name | What it is | Verified value |
+| --- | --- | --- |
+| App Store StarPilot BT | iPhone app, bundle `link.galaxy.bluetooth.natehuby76` | **1.2.2**, iTunes lookup `currentVersionReleaseDate` `2026-11-04T21:10:56Z`, minimum iOS 17.0. Listing: https://apps.apple.com/ca/app/starpilot-bt/id6821039119 |
+| Public companion source | `natehuby76/ios-clone` branch `integrated-latest` | Commit `081bd2045ed74e367fcc6eb2d2eb9c03df5597b0` (2026-11-06). Info.plist `CFBundleShortVersionString` is **1.0.6**, not 1.2.2. https://github.com/natehuby76/ios-clone |
+| Stable display version | `STARPILOT_DISPLAY_VERSION` in `selfdrive/ui/lib/starpilot_version.py` | **6.7.9** on this tree and on current `StarPilotHQ/StarPilot` branch `StarPilot` |
+| openpilot `COMMA_VERSION` | `common/version.h` | **0.11.2** |
+| BluePilot `bp-7.0` | A Ford lateral lineage cited in the README | Not this device firmware and not the iPhone app |
 
-Copying that bridge onto Stable would not be a minimal isolated backport. Unchanged, its session call does not exist here. Adapting it would add a GATT server beside Stable's existing Bluetooth manager, a pairing-window contract, and a Galaxy page manifest the app requires before Bluetooth Galaxy screens work. That is a new integration, not a drop-in, and it was not done. API routes already on Stable were left as they are.
+There is no firmware or display version `7.0` in Stable or in the current public iOS source. The iPhone app reads a comma `displayVersion` string from `/api/software/status` and does not compare it to 7.0. App Store 1.2.2 is not Stable 6.7.9.
+
+No public commit maps store version 1.2.2 to a source SHA. The repo version train that is public is 1.0.2, 1.0.3, 1.0.5, and 1.0.6. The 1.2.2 binary was not downloaded or diffed, so this tree is not claimed to be compatible with the installed app.
+
+### Accessible protocol, and why it still cannot be backported here
+
+The newest public source does publish a protocol. `GalaxyBluetooth/Wire.swift` and `BluetoothTransport.swift` at `081bd2045ed7` require an INFO payload of 17 bytes starting with `0x01`, then `GET /_bridge/health` with `protocol == 1` and `transport == "bluetooth"`. LAN login in `NetworkTransport.swift` requires `GET /api/auth/session` to return HTTP 200, `authenticated: true`, `localAccess: true`, and a non-empty `galaxy_session` cookie. Pairing calls `GET /api/companion/bluetooth-ready` (`schema == 1`) and `POST /api/bluetooth/action` with `{"operation":"accept_pair"}`. Galaxy screens require `GET /api/companion/web-manifest` whose files include `index.html`, `js/boot.js`, `js/app.js`, and `data/catalog.json` (`GalaxyAssetStore.swift`).
+
+Stable does not provide those routes. It does provide `GET /api/bluetooth/status`, `POST /api/bluetooth/<operation>` for audio and device operations, `GET /api/galaxy/status`, `GET /api/galaxy/session`, and `GET`/`PUT /api/params`. `GET /api/galaxy/session` returns `paired`, `sessionToken`, and `cookieName`. It does not return `authenticated` or `localAccess`, and it does not set the cookie the app requires.
+
+Other routes the same source calls, and Stable does not define, include `/api/local-access`, `/api/device/state`, `/api/software/status`, `/api/system/monitor`, `/api/models/status`, `/api/settings/pages/`, `/api/settings/preview`, `/api/settings/confirm`, `/api/companion/location`, `/api/companion/navigation`, and `/api/navigation/status`. Those belong to the Dom/SecretGood Galaxy surface. Adding stub responses would not be the app's protocol. Porting that surface would replace Stable Galaxy and navigation behavior, which this change does not do.
+
+A GATT server alone would also be incomplete: after the health check the app issues those HTTP calls. No bridge code was added, and no new unauthenticated settings route was added.
+
+What still requires a physical iPhone and comma, after a source SHA for store 1.2.2 exists and Stable grows the real session, pairing, and manifest contracts: pairing, reconnect, and a check that settings writes stay behind the pairing key. That test was not run.
 
 ## 3. Tesla side occupancy and lane-change checks
 
