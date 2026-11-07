@@ -266,3 +266,35 @@ On that synthetic arc at 13.9 m/s the lane-centering term opposes the leftward p
 `test_wide_turn_stage_harness.py` also checks the route-turn timing in `DesireHelper`: `turnLeft` while the instruction is fresh, the blinker matches, and speed is under `NAV_TURN_MAX_SPEED`; the desire clears at 14 m/s, without the blinker, with that side's blindspot, or when the instruction is stale. Turn lead is still inactive near 14 m/s.
 
 Cause remains unproven without one aligned problem-turn log: time, speed, blinker, `NavInstructionState`, model path curvature, post-lane-centering curvature, and the Tesla angle command.
+
+## 8. Route-intent timing map
+
+`selfdrive/controls/tests/route_turn_timing_map.py` is offline. `controlsd`, `DesireHelper`, and `LaneCenteringController` do not import it. It reads the current constants and reports a grid. It does not steer, publish, or set `nav_longitudinal_allowed`.
+
+These are separate stages. A row can pass one and miss the next. `desire_possible` is only the speed gate `0 <= v < NAV_TURN_MAX_SPEED`, with the other route-turn gates treated as already satisfied. That flag is model intent input. It is not a completed turn. A wide turn that requires the driver to take the wheel is an intervention, not a successful turn.
+
+| Speed | Preview | Signal lead | Desire speed gate | Turn lead | Gap | Tesla min radius | 20 m arc widened |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 3.0 m/s | 35.0 m | 51.0 m | yes | yes | no | 2.51 m | no |
+| 5.0 m/s | 35.0 m | 75.0 m | yes | yes | no | 6.97 m | no |
+| 7.0 m/s | 42.0 m | 99.0 m | yes | no | yes | 13.65 m | no |
+| 8.0 m/s | 48.0 m | 111.0 m | yes | no | yes | 17.83 m | no |
+| 10.0 m/s | 60.0 m | 135.0 m | yes | no | yes | 27.87 m | yes |
+| 12.0 m/s | 72.0 m | 159.0 m | yes | no | yes | 40.13 m | yes |
+| 13.9 m/s | 83.4 m | 181.8 m | yes | no | yes | 53.84 m | yes |
+| 14.0 m/s | 84.0 m | 183.0 m | no | no | no | 54.62 m | yes |
+
+- Preview distance is `clip(v * 6 s, 35 m, 90 m)`, the window in `DesireHelper._nav_turn_is_imminent`.
+- Signal-lead distance is `clip(15 m + v * 12 s, 30 m, 250 m)`, the distance in `DesireHelper._nav_turn_signal_matches`. Inside it, a matching blinker is classified as the route turn and does not start a lane change.
+- Turn lead is `3 m/s <= v < 7 m/s`. It is active at 5 m/s and inactive at 7.0 m/s.
+- The gap flag is desire possible and turn lead inactive. On this grid that is 7.0 through 13.9 m/s. Below 3 m/s the lead is also inactive, so the same boolean would be true there; that range is not on this grid.
+- The navigation table target for maneuver type `turn` and modifier `left` or `right` is 14 mph (6.26 m/s). That speed is inside the turn-lead window and under the 14 m/s desire cap. `StarPilotVCruise._get_nav_turn_control_target` returns 0 unless `nav_longitudinal_allowed` is already set. This map does not set it. Sharp left and sharp right stay 10 mph in the same table and were not changed.
+- Tesla min radius is `v^2 / CarControllerParams.ANGLE_LIMITS.MAX_LATERAL_ACCEL` (3.5886 m/s^2) from `opendbc/car/tesla/values.py`, compared with the 20 m left arc from `wide_turn_stage_harness.left_arc`. The cap widens that arc from 10 m/s upward on this grid. At 7 and 8 m/s the gap flag is set and the 20 m arc is still inside the cap. At 13.9 m/s desire is possible, lead is off, and the cap widens the arc. At 5 m/s desire is possible, lead is on, and the arc is inside the cap. At 14.0 m/s the desire speed gate is closed.
+
+`Desire.turnLeft` and `Desire.turnRight` are not a `controlsd` output. `selfdrive/modeld/modeld.py` constructs `DesireHelper`. The loop reads `DH.desire` from the previous update and writes a one-hot of length `ModelConstants.DESIRE_LEN` (8). In `cereal/log.capnp`, `turnLeft` is 1 and `turnRight` is 2. `ModelState.run` clears index 0 and stores a rising-edge pulse in `npy["desire"]`. The split and supercombo runners in `selfdrive/modeld/compile_modeld.py` shift that pulse into `desire_q` and pass it to the policy input whose name starts with `desire`.
+
+After that frame's inference, `DH.update` can copy a route turn onto `self.desire` when the lane-change state is off, and it copies the same value to `turn_direction`. The frame then publishes `starpilotModelV2.turnDirection` (`cereal/custom.capnp`, `StarPilotModelDataV2`). That message is the desire just computed, one model frame later than the one-hot used for that frame. `modelV2.meta.desireState` is the model output distribution filled in `selfdrive/modeld/fill_model_msg.py`, not this command. `LateralPlan.desire` is declared in `cereal/log.capnp` and is not assigned by Python in this tree.
+
+No model artifact was loaded and `modeld` was not executed, so the concrete tensor name is only known as the input that starts with `desire`.
+
+The cause of an intervention is still unproven. This map does not parse a log. An aligned problem-turn log would need time, speed, blinker, `NavInstructionState`, model path curvature, post-lane-centering curvature, and the Tesla angle command.
