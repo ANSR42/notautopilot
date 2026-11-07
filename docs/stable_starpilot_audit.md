@@ -234,3 +234,19 @@ Implemented there, from those files, and not imported here:
 This branch's Tesla port is the StarPilot Stable HW3/HW4 port in `opendbc/car/tesla/values.py`: `TESLA_MODEL_Y` includes "Tesla Model Y (with HW3) 2020-23". Its party-bus blindspot map is `!= 0`, so `SNA` is occupied. That is a different rule from TeslaPilot, and it was not changed. Presence of either rule is not a vehicle test.
 
 Two other public repositories match the name and are not this driving stack: [Memberoffoxhound/teslapilot-voice-engine](https://github.com/Memberoffoxhound/teslapilot-voice-engine) and [teslapilotlog/TeslaPilotLog](https://github.com/teslapilotlog/TeslaPilotLog). Neither was used.
+
+## 6. Wide turns and route turns: gates measured, cause not identified
+
+No control constant was changed. `test_wide_turn_gates.py` calls the current desire helper, the Tesla lateral-accel cap, and `LaneCenteringController`. It is not a completed turn and not a replay of `analyze3.py`.
+
+What the current source does, as separate stages:
+
+- A fresh route instruction with type `turn` and modifier `left` or `right` can set model desire `turnLeft` or `turnRight` while speed is under `NAV_TURN_MAX_SPEED` (14 m/s), the matching blinker is on, and that side's blindspot is clear. `selfdrive/controls/lib/desire_helper.py`.
+- The navigation speed target for that same modifier is 14 mph, in `NAV_TURN_TARGET_SPEEDS` in `starpilot/controls/lib/starpilot_vcruise.py`. That is slower than the desire cap.
+- Turn-initiation lead, which can raise commanded curvature in the blinker direction, is active only from 3 m/s up to `TURN_LEAD_MAX_SPEED` (7 m/s). Above that it does not run. The comments in `selfdrive/controls/controlsd.py` say late wheel wind-up is why turns were entered wide, and that starting the lead too early cut inside curbs and fought the driver. Those comments cite rlogs that are not in this tree. The lead was not retuned.
+- Tesla angle control caps lateral acceleration near 3.6 m/s^2 (`CarControllerParams.ANGLE_LIMITS` in `opendbc/car/tesla/values.py`). The same curvature command is a wider radius at the 14 m/s desire cap than at the 14 mph navigation target. The cap was not raised.
+- Lane centering can add at most 0.0012 1/m. A leftward model path produces a rightward correction. With `LaneCenteringPauseOnSignal` (default true) and a blinker, that correction fades out. It was not given a new floor. The five offline k=0.75 readings stay unselected.
+
+TeslaPilot does not add a route-to-turn method to reuse. Its desire helper has no turn desire. No other Tesla branch was copied.
+
+Not shown: that any of these gates is why MetaDrive runs 1–3 missed their turns, or why a logged wide turn happened. Those runs and `analyze3.py` / `k0.75_fade10-19` are not in this tree. A useful next experiment is one recorded approach with time, speed, blinker, `NavInstructionState`, model `position` curvature, curvature after lane centering, and the Tesla angle command. Until that exists, changing a speed gate or a steering limit would be a guess.
