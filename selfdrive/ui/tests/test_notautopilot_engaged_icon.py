@@ -1,6 +1,8 @@
 import hashlib
 from pathlib import Path
 
+from PIL import Image, ImageDraw, ImageFont
+
 from cereal import log
 
 from types import SimpleNamespace
@@ -17,7 +19,8 @@ State = log.SelfdriveState.OpenpilotState
 ROOT = Path(__file__).resolve().parents[3]
 BANNER = ROOT / "selfdrive" / "assets" / "notautopilot" / "banner.jpg"
 ICON = ROOT / "selfdrive" / "assets" / "notautopilot" / "icon.png"
-BANNER_SHA256 = "3441f49e8e56bc84d0aaa1f6a81c8ad2831f493bd8af4d7725a497ab32981dbc"
+BANNER_SHA256 = "446df6776745f84a50af42bae549b69ffbce0dbfa72526fed9b9c5631e855bc9"
+TAGLINE = "what autopilot should've been"
 ICON_SHA256 = "635a6eb8c79b61a8f319811e2a51250e303c1ad9e8fe1e00283712831bd370a3"
 
 
@@ -31,6 +34,35 @@ def test_banner_and_icon_are_the_supplied_bytes():
   assert "https://x.com/ANSR42" in readme
   assert "Unofficial" in readme
   assert "notautopilot" in readme
+  assert TAGLINE in readme
+
+
+def test_banner_tagline_matches_the_rendered_line():
+  banner = Image.open(BANNER).convert("RGB")
+  reference = Image.new("RGB", banner.size, (0, 0, 0))
+  draw = ImageDraw.Draw(reference)
+  font = ImageFont.truetype("/usr/share/fonts/truetype/macos/Inter-Medium.ttf", 30)
+  origin = (552, 544)
+  draw.text(origin, TAGLINE, font=font, fill=(220, 220, 222))
+  box = draw.textbbox(origin, TAGLINE, font=font)
+  assert box[2] < banner.width - 8 and box[3] < banner.height - 8
+  ink = 0
+  matched = 0
+  for y in range(box[1], box[3]):
+    for x in range(box[0], box[2]):
+      if min(reference.getpixel((x, y))) < 160:
+        continue
+      ink += 1
+      red, green, blue = banner.getpixel((x, y))
+      if min(red, green, blue) >= 140:
+        matched += 1
+  assert ink > 2000
+  assert matched == ink
+  attribution = [banner.getpixel((x, 502)) for x in range(552, 740)]
+  assert sum(min(pixel) > 140 for pixel in attribution) > 40
+  # The line sits under the attribution and does not enter the wheel.
+  assert box[0] >= 540
+  assert box[1] > 520
 
 
 def test_badge_requires_enabled_state_and_lateral_actuation():
