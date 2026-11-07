@@ -1,0 +1,12 @@
+Unedited banner source: banner-mike-nov6.jpg
+Supplied by Mike for the notautopilot README. SHA-256 1d6c5fd88cb8afc0624c5c86ed59a4a2443e4745ed3c81ba1d2070f966e06210.
+The committed README file selfdrive/assets/notautopilot/banner.jpg is this image plus a small "by @ANSR42" line. The original wheel artwork and the lines "NOTAUTOPILOT", "a StarPilot branch", and "Unofficial project" were not redrawn.
+
+X logo: logo.svg and logo-white.png
+Official X Brand Toolkit file x-logo.zip, published at
+https://about.x.com/content/dam/about-twitter/x/brand-toolkit/x-logo.zip
+Live download returned HTTP 403 on 2026-11-07. These two files were taken from the Internet Archive copy captured 2024-08-06:
+https://web.archive.org/web/20240806100753/https://about.x.com/content/dam/about-twitter/x/brand-toolkit/x-logo.zip
+Zip entries are dated 2023-08-02. logo-white.png was cropped to its opaque mark and tinted to the banner's gray. The mark was not redrawn.
+SHA-256 logo.svg dd46f96b6f47fcd33683b79ddfaf3daca1d4f8aeba3c0f2bde1584c69cc699d4
+SHA-256 logo-white.png 432bdd47255b48366843ec21d209e774f93b807e1fd0894fc983aad0dc7bd03b

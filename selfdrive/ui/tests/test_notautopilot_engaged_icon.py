@@ -17,15 +17,18 @@ State = log.SelfdriveState.OpenpilotState
 ROOT = Path(__file__).resolve().parents[3]
 BANNER = ROOT / "selfdrive" / "assets" / "notautopilot" / "banner.jpg"
 ICON = ROOT / "selfdrive" / "assets" / "notautopilot" / "icon.png"
-BANNER_SHA256 = "59e9355489d2f0cbfd6da2560b3e61ca5f1ae3a29a9133a436d0cac756682264"
+BANNER_SHA256 = "3441f49e8e56bc84d0aaa1f6a81c8ad2831f493bd8af4d7725a497ab32981dbc"
 ICON_SHA256 = "635a6eb8c79b61a8f319811e2a51250e303c1ad9e8fe1e00283712831bd370a3"
 
 
 def test_banner_and_icon_are_the_supplied_bytes():
   assert hashlib.sha256(BANNER.read_bytes()).hexdigest() == BANNER_SHA256
+  source = ROOT / "selfdrive" / "assets" / "notautopilot" / "source" / "banner-mike-nov6.jpg"
+  assert hashlib.sha256(source.read_bytes()).hexdigest() == "1d6c5fd88cb8afc0624c5c86ed59a4a2443e4745ed3c81ba1d2070f966e06210"
   assert hashlib.sha256(ICON.read_bytes()).hexdigest() == ICON_SHA256
   readme = (ROOT / "README.md").read_text(encoding="utf-8")
   assert "selfdrive/assets/notautopilot/banner.jpg" in readme
+  assert "https://x.com/ANSR42" in readme
   assert "Unofficial" in readme
   assert "notautopilot" in readme
 
