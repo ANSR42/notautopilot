@@ -195,4 +195,42 @@ The harness compares five readings and does not pick one for the car:
 
 Every enabled reading above stays at or under the production `|delta|` of `0.0012` 1/m. `controlsd` still applies `clip_curvature` afterward. At 20 m/s that jerk step is `0.000125` 1/m, so an unsmoothed jump to `0.0012` would be slewed. The production 0.4 s smoother's first step from zero is inside that jerk step. The harness does not remove the slew.
 
-A reported "~75 percent less steering away from an intended turn" was not supplied as a log, and the simulator was not reported as completing the turns. These CPU tests do not reproduce that figure. A logged replay and a finished simulator turn are still missing. Controls Mismatch was not tested and is not fixed.
+A reported "~75 percent less steering away from an intended turn" was not supplied as a log, and the simulator was not reported as completing the turns. These CPU tests do not reproduce that figure. A logged replay and a finished simulator turn are still missing. Controls Mismatch was not tested and is not fixed. `analyze3.py` and a signed final-command floor named `k0.75_fade10-19` are not in this tree. None of the five readings is presumed to be that floor.
+
+## 5. TeslaPilot: identified, not ported
+
+TeslaPilot is not Tesla stock Autopilot, not EVPilot, and not StarPilot `Dom`. This tree has no `TeslaPilot` branch. `StarPilotHQ/StarPilot` branches checked on 2026-11-07 include `StarPilot` and `Dom`, and no TeslaPilot branch. `commaai/openpilot` has no branch of that name.
+
+The repository that uses the name is [Bobe-Wang/TeslaPilot](https://github.com/Bobe-Wang/TeslaPilot). GitHub records it as a fork of [BogGyver/openpilot](https://github.com/BogGyver/openpilot). Both describe themselves as "FOR PRE-AP/AP1/AP2 TESLA CARS ONLY" and both use the MIT license. That license was not treated as covering third-party files in the TeslaPilot tree, including `selfdrive/car/modules/teslaEpasFlasher/` and the Tinkla boot animation. None of that tree was copied here.
+
+| Line | Branch | Commit read | Date | What it is |
+| --- | --- | --- | --- | --- |
+| Named fork, default | `tesla_unity_dev` | `c8be0a8f32d1` | 2024-02-21 | README update only. `TINKLA_VERSION` is `Unity v0.8.13.Beta18-devel`. |
+| Upstream of that fork | `tesla_unity_dev` | `501c7de91b59` | 2023-03-23 | `BogGyver/openpilot`, message `bump panda`. |
+| Newer comma-three code | `tesla_unity_betaC3` | `0d99a1b697` | 2024-01-23 | 112 commits ahead of the named fork's default and 4 behind. Commit message `Tesla Unity v0.9.6-Beta63`. `common/tinkla_version.h` is `0.9.6-63`. |
+| Release-labeled comma three | `tesla_unity_releaseC3` | `3ceb9ad29b` | 2024-01-22 | `Bring latest micd.py from Comma`. |
+| Release-labeled comma two | `tesla_unity_releaseC2` | `c34dd32ff5` | 2023-03-23 | `Tesla Unity v0.8.13-58`. |
+
+Code URLs for the default branch of the named fork:
+
+- Cars: https://github.com/Bobe-Wang/TeslaPilot/blob/tesla_unity_dev/selfdrive/car/tesla/values.py
+- Interface and longitudinal flag: https://github.com/Bobe-Wang/TeslaPilot/blob/tesla_unity_dev/selfdrive/car/tesla/interface.py
+- Blindspot and blinker mapping: https://github.com/Bobe-Wang/TeslaPilot/blob/tesla_unity_dev/selfdrive/car/tesla/carstate.py
+- Angle steering: https://github.com/Bobe-Wang/TeslaPilot/blob/tesla_unity_dev/selfdrive/car/tesla/carcontroller.py
+- Newer car list: https://github.com/Bobe-Wang/TeslaPilot/blob/tesla_unity_betaC3/selfdrive/car/tesla/values.py
+
+On `tesla_unity_dev`, `CAR` is only `TESLA AP2 MODEL S`, `TESLA AP1 MODEL S`, `TESLA AP1 MODEL X`, and `TESLA MODEL S` (pre-AP). On `tesla_unity_betaC3` the list adds `TESLA AP2+ MODEL X` and still has no Model 3 and no Model Y. There is no comma four, `mici`, or Chestnut string in the files read. The README still names comma two and comma three.
+
+Implemented there, from those files, and not imported here:
+
+- Angle steering, with a rate limit and a 20 degree step from the current wheel angle.
+- Openpilot longitudinal control only when `TinklaEnableOPLong` is true, or, on AP2 Model S, when id `0x2bf` is present on the AP powertrain fingerprint. Otherwise longitudinal stays off.
+- Other read settings: `TinklaUseTeslaRadar`, `TinklaTeslaRadarBehindNosecone`, `TinklaHao`, `TinklaHasIcIntegration`, `TinklaHasIBooster`, `TinklaEnablePedal`, `TinklaAutoResumeACC`, `TinklaPedalCanZero`, `TinklaHandsOnLevel`, `TinklaAutopilotDisabled`, `TinklaFollowDistance`, `TinklaForceTeslaPreAP`, `TinklaUseLongControlData`, `TinklaAccelProfile`, `TinklaAdjustAccWithSpeedLimit`, `TinklaBrakeFactor`, `TinklaSpeedLimitOffset`, `TinklaSpeedLimitUseRelative`, `TinklaPedalProfile`, `TinklaPost1916Fix`.
+- `TinklaHao` sets panda flag `FLAG_TESLA_ENABLE_HAO`. When HAO is enabled, a pressed pedal is reported as not pressed.
+- Blindspot, except pre-AP where both sides are forced false: `PARK_sdiBlindSpotLeft` / `Right` equal to `WARNING`, or `DAS_blindSpotRearLeft` / `Right` in `WARNING_LEVEL_1` or `WARNING_LEVEL_2`. Other values, including a lookup miss, do not set the flag. No freshness timeout was found in that `carstate.py`.
+- Blinkers for stock openpilot lane change are set from a tap (`tap_direction`) only while the stalk is not held. `DAS_autoLaneChangeState` is parsed and was not referenced again in the controller, interface, or longitudinal modules read on `tesla_unity_dev`.
+- Route following is not implemented there. `selfdrive/controls/lib/desire_helper.py` on `tesla_unity_dev` maps lane-change state to `laneChangeLeft` / `laneChangeRight` only. It has no `turnLeft`, `turnRight`, or `NavInstructionState`. The `selfdrive/assets/navigation/` files on that branch are direction icons. That is a map display, not a route-to-turn command. https://github.com/Bobe-Wang/TeslaPilot/blob/tesla_unity_dev/selfdrive/controls/lib/desire_helper.py
+
+This branch's Tesla port is the StarPilot Stable HW3/HW4 port in `opendbc/car/tesla/values.py`: `TESLA_MODEL_Y` includes "Tesla Model Y (with HW3) 2020-23". Its party-bus blindspot map is `!= 0`, so `SNA` is occupied. That is a different rule from TeslaPilot, and it was not changed. Presence of either rule is not a vehicle test.
+
+Two other public repositories match the name and are not this driving stack: [Memberoffoxhound/teslapilot-voice-engine](https://github.com/Memberoffoxhound/teslapilot-voice-engine) and [teslapilotlog/TeslaPilotLog](https://github.com/teslapilotlog/TeslaPilotLog). Neither was used.
