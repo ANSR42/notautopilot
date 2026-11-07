@@ -31,9 +31,59 @@ Fail-safe already in the upstream installer
   move a partial tree into /data/openpilot. branchMigration only renames
   release3 and release3-staging, so this branch name is not rewritten.
 
-Not done
-  The ELF was not executed. A comma four was not connected. StarPilot's
-  tools/agnos/patch_system_reset_image.py says the installer.comma.ai binary
-  targets Wayland and cannot run in that custom AGNOS. This ELF contains no
-  "wayland" string; whether StarPilot's AGNOS setup will run it was not tested.
-  Stock comma setup is the surface this file is for.
+Dynamic dependencies, from readelf -d on this ELF (not from a text search)
+  Interpreter: /lib/ld-linux-aarch64.so.1
+  DT_NEEDED, in order:
+    libGLESv2_adreno.so
+    libEGL_adreno.so
+    libgbm.so
+    libstdc++.so.6
+    libm.so.6
+    libgcc_s.so.1
+    libc.so.6
+  The display backend recorded in the dynamic section is Adreno GLES/EGL plus
+  GBM. libwayland is not a DT_NEEDED entry. That does not prove the program
+  avoids Wayland, and it does not prove these SONAMEs exist on a device.
+
+Two setup contracts in this tree
+
+  Stock comma setup is system/ui/mici_setup.py and system/ui/tici_setup.py.
+  It downloads the entered URL, requires ELF magic, and renames the file to
+  /tmp/installer. For that contract, this ELF is the right file type and
+  architecture, and the padded '?' slot is the customization described in
+  selfdrive/ui/installer/installer.cc ("Leave some extra space for the fork
+  installer") and implemented again by patch_padded_binary_slot in
+  tools/agnos/patch_system_reset_image.py. The stock screen was not run.
+
+  StarPilot's legacy image tool, tools/agnos/patch_system_reset_image.py,
+  says it is only for auditing the previously published 19.6.13 image and
+  that production images are built by agnos-builder, which is not in this
+  repository. The patched setup it would write does not execute a downloaded
+  installer.comma.ai ELF for an owner/branch URL. The comment at that
+  replacement says that binary cannot run in that AGNOS. It copies
+  /usr/comma/installer and rewrites only the slots
+  https://github.com/firestar5683/openpilot.git and StarPilot, and the
+  replacement URL is always https://github.com/<owner>/openpilot.git.
+  The owner/branch regular expression does not match this branch, because
+  the branch contains a slash. A full raw.githubusercontent.com URL therefore
+  falls through to the download path that the same comment rejects.
+  agnos-builder is absent, so the setup contract of a current production
+  StarPilot image is not in this tree.
+
+This ELF was not executed. Nothing here reads a device /VERSION or
+/usr/comma/setup. Stock setup accepting an ELF does not establish that a
+StarPilot AGNOS image will run this binary.
+
+Read-only check before anyone enters the URL, from a shell already on the
+device. This does not install, reset, or flash:
+
+  cat /VERSION
+  python3 -c 'p=open("/usr/comma/setup","rb").read(); print("patched_setup", b"file:///usr/comma/installer" in p)'
+  readelf -d /usr/comma/installer | grep NEEDED
+
+patched_setup True means the legacy bundled-installer setup is what will
+run. This raw ELF is then the binary that patch declines to execute, and
+the bundled slot cannot name notautopilot. patched_setup False means the
+stock download-ELF setup is present; this URL matches that contract only.
+Compare the NEEDED lines with the list above before treating the bundled
+installer as the same binary.
