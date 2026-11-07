@@ -250,3 +250,19 @@ What the current source does, as separate stages:
 TeslaPilot does not add a route-to-turn method to reuse. Its desire helper has no turn desire. No other Tesla branch was copied.
 
 Not shown: that any of these gates is why MetaDrive runs 1–3 missed their turns, or why a logged wide turn happened. Those runs and `analyze3.py` / `k0.75_fade10-19` are not in this tree. A useful next experiment is one recorded approach with time, speed, blinker, `NavInstructionState`, model `position` curvature, curvature after lane centering, and the Tesla angle command. Until that exists, changing a speed gate or a steering limit would be a guess.
+
+## 7. Stage harness: investigative leads only
+
+`selfdrive/controls/tests/wide_turn_stage_harness.py` is not imported by `controlsd`. For a synthetic 20 m left arc it reports, in 1/m except the radii:
+
+- model path curvature from the same `2*y/d^2` chord fit as `controlsd._plan_circle_curvature`
+- lane-centering correction before and after `LaneCenteringPauseOnSignal` with a blinker
+- whether `TURN_LEAD_MIN_SPEED <= v < TURN_LEAD_MAX_SPEED` (3 m/s and 7 m/s)
+- requested curvature, model curvature plus the correction that matches the blinker
+- Tesla `CarControllerParams.ANGLE_LIMITS.MAX_LATERAL_ACCEL / v^2`, and the radius that cap implies
+
+On that synthetic arc at 13.9 m/s the lane-centering term opposes the leftward path but is about 0.0012 1/m, the turn lead is inactive, and the Tesla acceleration cap is what widens the radius. At 5 m/s the same arc is inside the lead window and inside the Tesla cap, and lane centering still opposes until the blinker pause. These are leads. They do not prove the cause of a wide turn.
+
+`test_wide_turn_stage_harness.py` also checks the route-turn timing in `DesireHelper`: `turnLeft` while the instruction is fresh, the blinker matches, and speed is under `NAV_TURN_MAX_SPEED`; the desire clears at 14 m/s, without the blinker, with that side's blindspot, or when the instruction is stale. Turn lead is still inactive near 14 m/s.
+
+Cause remains unproven without one aligned problem-turn log: time, speed, blinker, `NavInstructionState`, model path curvature, post-lane-centering curvature, and the Tesla angle command.
