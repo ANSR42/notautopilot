@@ -161,6 +161,13 @@ class StarPilotLateralLayout(_SettingsPage):
     # ── 2. Lane Changes ──
     self._lane_change_rows = [
       SettingRow(
+        "AutoLaneChange", "toggle", tr_noop("Auto Lane Change"),
+        subtitle=tr_noop("Blinker starts a lane change above 25 mph when that side's Tesla blind-spot frame is fresh and NO_WARNING. Off by default."),
+        get_state=lambda: p.get_bool("AutoLaneChange"),
+        set_state=lambda s: p.put_bool("AutoLaneChange", s),
+        visible=lc_on,
+      ),
+      SettingRow(
         "NudgelessLaneChange", "toggle", tr_noop("Auto Lane Changes"),
         subtitle=tr_noop("Signal triggers automatic lane change."),
         get_state=lambda: p.get_bool("NudgelessLaneChange"),

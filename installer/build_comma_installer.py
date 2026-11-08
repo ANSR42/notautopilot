@@ -13,27 +13,38 @@ import sys
 
 OLD_URL = b"https://github.com/ANSR42/openpilot.git"
 NEW_URL = b"https://github.com/ANSR42/notautopilot.git"
-BRANCH = b"cursor/stable-audit-report-1491"
+OLD_BRANCH = b"cursor/stable-audit-report-1491"
+BRANCH = b"cursor/alc-test-install-1491"
 
 
-def patch_git_url(data: bytes, old_url: bytes = OLD_URL, new_url: bytes = NEW_URL) -> bytes:
-  if len(new_url) < len(old_url):
-    raise ValueError("replacement URL is shorter than the slot marker")
-  marker = old_url + b"?"
+def _replace_slot(data: bytes, old_value: bytes, new_value: bytes) -> bytes:
+  if len(new_value) < 1:
+    raise ValueError("replacement slot value is empty")
+  marker = old_value + b"?"
   start = data.find(marker)
   if start < 0 or data.find(marker, start + 1) >= 0:
-    raise ValueError("expected exactly one installer git URL slot")
+    raise ValueError(f"expected exactly one installer slot for {old_value!r}")
   end = data.find(b"\x00", start)
   if end < 0:
-    raise ValueError("git URL slot is not NUL terminated")
-  new_marker = new_url + b"?"
+    raise ValueError("installer slot is not NUL terminated")
+  new_marker = new_value + b"?"
   if len(new_marker) > end - start:
-    raise ValueError("replacement URL does not fit in the existing slot")
+    raise ValueError("replacement does not fit in the existing slot")
   patched = bytearray(data)
   patched[start:end] = new_marker + b" " * (end - start - len(new_marker))
   if len(patched) != len(data):
     raise ValueError("patch changed the installer size")
   return bytes(patched)
+
+
+def patch_git_url(data: bytes, old_url: bytes = OLD_URL, new_url: bytes = NEW_URL) -> bytes:
+  if len(new_url) < len(old_url):
+    raise ValueError("replacement URL is shorter than the slot marker")
+  return _replace_slot(data, old_url, new_url)
+
+
+def patch_branch(data: bytes, old_branch: bytes = OLD_BRANCH, new_branch: bytes = BRANCH) -> bytes:
+  return _replace_slot(data, old_branch, new_branch)
 
 
 def main(argv: list[str]) -> int:
@@ -42,10 +53,12 @@ def main(argv: list[str]) -> int:
     return 2
   base = open(argv[1], "rb").read()
   patched = patch_git_url(base)
+  if OLD_BRANCH in patched:
+    patched = patch_branch(patched)
   if patched.count(NEW_URL + b"?") != 1 or patched.count(OLD_URL) != 0:
     raise SystemExit("patched installer does not contain exactly the notautopilot URL")
-  if patched.count(BRANCH + b"?") != 1:
-    raise SystemExit("patched installer lost the branch slot")
+  if patched.count(BRANCH + b"?") != 1 or patched.count(OLD_BRANCH) != 0:
+    raise SystemExit("patched installer does not contain exactly the test branch")
   open(argv[2], "wb").write(patched)
   print(hashlib.sha256(patched).hexdigest())
   return 0

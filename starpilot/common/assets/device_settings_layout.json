@@ -184,6 +184,16 @@
         "settings_tier": "simple"
       },
       {
+        "key": "AutoLaneChange",
+        "label": "Auto Lane Change",
+        "description": "Off by default. With the blinker on, start a lane change without a steering nudge only above 25 mph and only when that side's Tesla blind-spot frame is fresh and NO_WARNING. Missing, stale, SNA, and warning frames do not count as clear. This does not measure the rear gap.",
+        "picker_description": "Blinker lane change above 25 mph when the Tesla blind-spot frame is fresh and clear.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "LaneChanges",
+        "settings_tier": "simple"
+      },
+      {
         "key": "NudgelessLaneChange",
         "label": "Automatic Lane Changes",
         "description": "When the turn signal is on, openpilot will automatically change lanes. If a vehicle is detected in the blind spot, the lane change waits until it is clear. No steering-wheel nudge required!",

@@ -12,6 +12,10 @@ from opendbc.car.tesla.preap.carstate import get_preap_can_parsers, update_preap
 from opendbc.car.tesla.preap.engagement import PreAPEngagement
 from opendbc.car.tesla.preap.nap_conf import nap_conf
 from opendbc.car.tesla.preap.pedal_feedback import PedalFeedback
+from openpilot.selfdrive.controls.lib.notautopilot_auto_lane_change import (
+  BSM_UNSAMPLED,
+  blind_spot_message_is_fresh,
+)
 
 ButtonType = structs.CarState.ButtonEvent.Type
 
@@ -195,9 +199,18 @@ class CarState(CarStateBase):
     # Seatbelt
     ret.seatbeltUnlatched = cp_party.vl["UI_warning"]["buckleStatus"] != 1
 
-    # Blindspot
-    ret.leftBlindspot = cp_ap_party.vl["DAS_status"]["DAS_blindSpotRearLeft"] != 0
-    ret.rightBlindspot = cp_ap_party.vl["DAS_status"]["DAS_blindSpotRearRight"] != 0
+    # Blindspot. The booleans stay the existing != 0 map. Fresh raw values are
+    # published beside them and are the only sample Auto Lane Change may use.
+    das_status = cp_ap_party.vl["DAS_status"]
+    left_raw = int(das_status["DAS_blindSpotRearLeft"])
+    right_raw = int(das_status["DAS_blindSpotRearRight"])
+    ret.leftBlindspot = left_raw != 0
+    ret.rightBlindspot = right_raw != 0
+    das_state = next((state for state in cp_ap_party.message_states.values() if state.name == "DAS_status"), None)
+    das_fresh = blind_spot_message_is_fresh(
+      das_state.timestamps if das_state is not None else (),
+      cp_ap_party._last_update_nanos,
+    )
 
     # AEB
     ret.stockAeb = cp_ap_party.vl["DAS_control"]["DAS_aebEvent"] == 1
@@ -220,6 +233,10 @@ class CarState(CarStateBase):
     fp_ret = custom.StarPilotCarState.new_message()
     if self.CP.flags & TeslaFlags.AOL_SCREEN_BUTTON:
       fp_ret.cancelPressed = self.screen_cancel_pressed
+    fp_ret.blindSpotRearLeftRaw = left_raw if das_fresh else BSM_UNSAMPLED
+    fp_ret.blindSpotRearRightRaw = right_raw if das_fresh else BSM_UNSAMPLED
+    fp_ret.blindSpotRearLeftFresh = das_fresh
+    fp_ret.blindSpotRearRightFresh = das_fresh
 
     return ret, fp_ret
 

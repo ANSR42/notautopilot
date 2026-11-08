@@ -110,6 +110,12 @@ struct StarPilotCarState @0xf35cc4560bbf6ec2 {
   accelHardCruise @28 :Bool;  # current/releasing accel cruise button came from GM hard-press signal
   decelHardCruise @29 :Bool;  # current/releasing decel cruise button came from GM hard-press signal
   pulseAndGlide @30 :Bool;  # developer-only wheel-button pulse-and-glide mode is enabled
+  # Tesla DAS_status blind-spot raw values. 0 is NO_WARNING, 255 means no sample.
+  # Fresh is true only after an accepted DAS_status frame inside the age limit.
+  blindSpotRearLeftRaw @31 :UInt8 = 255;
+  blindSpotRearRightRaw @32 :UInt8 = 255;
+  blindSpotRearLeftFresh @33 :Bool;
+  blindSpotRearRightFresh @34 :Bool;
 }
 
 struct StarPilotDeviceState @0xda96579883444c35 {

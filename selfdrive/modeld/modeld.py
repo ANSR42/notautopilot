@@ -32,6 +32,7 @@ from openpilot.system.camerad.cameras.nv12_info import get_nv12_info
 from openpilot.system import sentry
 from opendbc.car.car_helpers import get_demo_car_params
 from openpilot.selfdrive.controls.lib.desire_helper import DesireHelper
+from openpilot.selfdrive.controls.lib.notautopilot_auto_lane_change import BSM_UNSAMPLED, BlindSpotSample
 from openpilot.selfdrive.controls.lib.drive_helpers import get_accel_from_plan_tomb_raider, smooth_value
 from openpilot.selfdrive.modeld.camera_offset import CameraOffset, DEFAULT_CAMERA_HEIGHT
 from openpilot.selfdrive.modeld.parse_model_outputs import Parser
@@ -1047,6 +1048,18 @@ def _runner_frame_args(model: ModelState, buf_main, buf_extra,
   return bufs, transforms, inputs
 
 
+def _blind_spot_sample(sm):
+  if not sm.valid.get("starpilotCarState", False):
+    return None
+  state = sm["starpilotCarState"]
+  return BlindSpotSample(
+    left_raw=int(getattr(state, "blindSpotRearLeftRaw", BSM_UNSAMPLED)),
+    right_raw=int(getattr(state, "blindSpotRearRightRaw", BSM_UNSAMPLED)),
+    left_fresh=bool(getattr(state, "blindSpotRearLeftFresh", False)),
+    right_fresh=bool(getattr(state, "blindSpotRearRightFresh", False)),
+  )
+
+
 def main(demo=False):
   cloudlog.warning("modeld init")
 
@@ -1212,7 +1225,7 @@ def main(demo=False):
   if external_gpu_requested:
     publish_services.append("chestnutState")
   pm = PubMaster(publish_services)
-  sm = SubMaster(["deviceState", "carState", "roadCameraState", "liveCalibration", "driverMonitoringState", "carControl", "liveDelay", "starpilotPlan"])
+  sm = SubMaster(["deviceState", "carState", "roadCameraState", "liveCalibration", "driverMonitoringState", "carControl", "liveDelay", "starpilotPlan", "starpilotCarState"])
 
   publish_state = PublishState()
   chestnut_state = ChestnutState(pm, external_gpu_active) if external_gpu_requested else None
@@ -1512,7 +1525,8 @@ def main(demo=False):
       l_lane_change_prob = desire_state[log.Desire.laneChangeLeft]
       r_lane_change_prob = desire_state[log.Desire.laneChangeRight]
       lane_change_prob = l_lane_change_prob + r_lane_change_prob
-      DH.update(sm['carState'], sm['carControl'].latActive, lane_change_prob, sm['starpilotPlan'], starpilot_toggles, sm['carControl'].enabled)
+      DH.update(sm['carState'], sm['carControl'].latActive, lane_change_prob, sm['starpilotPlan'], starpilot_toggles, sm['carControl'].enabled,
+                _blind_spot_sample(sm))
       modelv2_send.modelV2.meta.laneChangeState = DH.lane_change_state
       modelv2_send.modelV2.meta.laneChangeDirection = DH.lane_change_direction
       starpilot_modelv2_send.starpilotModelV2.turnDirection = DH.turn_direction
