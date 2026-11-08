@@ -4,6 +4,7 @@ import time
 from multiprocessing import Process
 
 from openpilot.common.params import Params
+from openpilot.system.athena.crash_policy import ATHENA_LATCHES_ENGAGEMENT
 from openpilot.system.manager.process import launcher
 from openpilot.common.swaglog import cloudlog
 from openpilot.system.hardware import HARDWARE
@@ -28,7 +29,8 @@ def main():
   try:
     while 1:
       cloudlog.info("starting athena daemon")
-      proc = Process(name='athenad', target=launcher, args=('system.athena.athenad', 'athenad'))
+      proc = Process(name='athenad', target=launcher, args=('system.athena.athenad', 'athenad'),
+                     kwargs={'latch_engagement': ATHENA_LATCHES_ENGAGEMENT})
       proc.start()
       proc.join()
       cloudlog.event("athenad exited", exitcode=proc.exitcode)
