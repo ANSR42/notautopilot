@@ -1,0 +1,15 @@
+Pure-Python json-rpc 1.15.0. The import name is jsonrpc.
+
+Wheel: https://files.pythonhosted.org/packages/94/9e/820c4b086ad01ba7d77369fb8b11470a01fac9b4977f02e18659cf378b6b/json_rpc-1.15.0-py2.py3-none-any.whl
+sha256: 4a4668bbbe7116feb4abbd0f54e64a4adcf4b8f648f19ffa0848ad0f6606a9bf
+Sdist: https://files.pythonhosted.org/packages/6d/9e/59f4a5b7855ced7346ebf40a2e9a8942863f644378d956f68bcef2c88b90/json-rpc-1.15.0.tar.gz
+sha256: e6441d56c1dcd54241c937d0a2dcd193bdf0bdc539b5316524713f554b7f85b9
+Lock: uv.lock package json-rpc 1.15.0
+License: jsonrpc/LICENSE, MIT, Kirill Pavlov, 2013-2018.
+sha256: 65d2a4421f8d862eae81a9ce8ceaf16a264412e849ed654f75606fe5de6e8e4a
+Wheel METADATA Requires-Dist count: 0. six is bundled inside this package.
+
+The jsonrpc package is the unmodified wheel contents. LICENSE is the
+unmodified sdist LICENSE.txt, byte-identical to the wheel LICENSE.txt.
+athenad imports jsonrpc at module load. launch_chffrplus.sh puts
+starpilot/third_party first on PYTHONPATH.
