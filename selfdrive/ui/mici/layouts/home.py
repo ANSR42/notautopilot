@@ -12,6 +12,7 @@ from openpilot.system.ui.widgets.icon_widget import IconWidget
 from openpilot.system.ui.widgets.label import UnifiedLabel
 from openpilot.system.ui.lib.application import ASSETS_DIR, gui_app, FontWeight, MousePos
 from openpilot.selfdrive.ui.lib.mode_banner import ModeBannerVariant, get_mode_banner_variant, mode_atom_color
+from openpilot.selfdrive.ui.lib.notautopilot_wordmark import WORDMARK_ASSET, WORDMARK_NATIVE, fitted_size
 from openpilot.selfdrive.ui.lib.starpilot_version import STARPILOT_DISPLAY_VERSION
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.starpilot.common.model_lab import model_lab_pair_display_name_from_params
@@ -177,7 +178,8 @@ class MiciHomeLayout(Widget):
       self._mic_icon,
     ], spacing=18)
 
-    self._openpilot_label = UnifiedLabel("StarPilot", font_size=96, font_weight=FontWeight.BRAND, max_width=480, wrap_text=False)
+    self._wordmark = gui_app.texture(WORDMARK_ASSET, WORDMARK_NATIVE[0], WORDMARK_NATIVE[1])
+    self._wordmark_draw_h = 36.0
     self._version_label = UnifiedLabel("", font_size=36, font_weight=FontWeight.ROMAN, max_width=480, wrap_text=False)
     self._large_version_label = UnifiedLabel("", font_size=64, text_color=rl.GRAY, font_weight=FontWeight.ROMAN, max_width=480, wrap_text=False)
     self._date_label = UnifiedLabel("", font_size=36, text_color=rl.GRAY, font_weight=FontWeight.ROMAN, max_width=480, wrap_text=False)
@@ -261,12 +263,22 @@ class MiciHomeLayout(Widget):
 
   def _render(self, _):
     # TODO: why is there extra space here to get it to be flush?
-    text_pos = rl.Vector2(self.rect.x - 2 + HOME_PADDING, self.rect.y - 16)
-    self._openpilot_label.set_position(text_pos.x, text_pos.y)
-    self._openpilot_label.render()
+    text_pos = rl.Vector2(self.rect.x - 2 + HOME_PADDING, self.rect.y + 6)
+    mark_w, mark_h = fitted_size(
+      self._wordmark.width, self._wordmark.height,
+      max(40.0, self.rect.width - HOME_PADDING * 2), self._wordmark_draw_h,
+    )
+    rl.draw_texture_pro(
+      self._wordmark,
+      rl.Rectangle(0, 0, self._wordmark.width, self._wordmark.height),
+      rl.Rectangle(text_pos.x, text_pos.y, mark_w, mark_h),
+      rl.Vector2(0, 0),
+      0.0,
+      rl.WHITE,
+    )
 
     if self._version_text is not None:
-      version_pos = rl.Rectangle(text_pos.x, text_pos.y + self._openpilot_label.font_size + 16, 100, 44)
+      version_pos = rl.Rectangle(text_pos.x, text_pos.y + mark_h + 10, 100, 44)
       self._version_label.set_text(self._version_text[0])
       self._version_label.set_position(version_pos.x, version_pos.y)
       self._version_label.render()

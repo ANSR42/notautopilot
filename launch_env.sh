@@ -25,7 +25,10 @@ if [ -z "$AGNOS_VERSION" ]; then
 fi
 
 if [ -z "$AGNOS_ACCEPTED_VERSIONS" ]; then
-  export AGNOS_ACCEPTED_VERSIONS="19.8.1 19.8.2 20.2-starpilot.1 20.2.1"
+  # 19.9 is the /VERSION read on the comma four this installer targets.
+  # launch_chffrplus.sh runs the AGNOS updater when /VERSION is outside this
+  # list. Accepting 19.9 skips that flash. It does not select a new image.
+  export AGNOS_ACCEPTED_VERSIONS="19.8.1 19.8.2 19.9 20.2-starpilot.1 20.2.1"
 fi
 
 export STAGING_ROOT="/data/safe_staging"
