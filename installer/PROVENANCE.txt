@@ -1,39 +1,15 @@
 Comma setup installer for ANSR42/notautopilot branch cursor/stable-audit-report-1491.
+This branch is the visual-only candidate. It does not contain the blinker lane-change port.
 
-What the comma setup screen accepts
-  system/ui/tici_setup.py and system/ui/mici_setup.py download one URL and keep
-  the body only when the first four bytes are the ELF magic 7f 45 4c 46. They
-  then move that file to /tmp/installer. This is not a shell script.
-
-Base artifact
-  Public URL: https://installer.comma.ai/ANSR42/cursor%2Fstable-audit-report-1491
-  Request: User-Agent AGNOSSetup-19.6, no X-openpilot-device-type header.
-  SHA-256: ceb64a074a1a6d18bf0b9dc88d95e69582bc75b04229645a7f01b455c3a90ce7
-  Size: 2051392 bytes
-  ELF64, little endian, OS ABI GNU, AArch64, PIE, interpreter /lib/ld-linux-aarch64.so.1
-  The same request with X-openpilot-device-type: mici returns HTTP 409 and the
-  text "This version of openpilot is not compatible with this device." That
-  check looks up https://github.com/ANSR42/openpilot, which is HTTP 404. No
-  device header was invented to get past that response.
-
-Patch
-  installer/build_comma_installer.py replaces the single padded slot
-  https://github.com/ANSR42/openpilot.git
-  with
-  https://github.com/ANSR42/notautopilot.git
-  The slot is the '?'-terminated string in selfdrive/ui/installer/installer.cc.
-  File size stays 2051392. The branch slot stays cursor/stable-audit-report-1491.
-  Seventeen bytes differ, all inside that URL slot. No other bytes change.
-  Output SHA-256: 40486647426c251fbb446e410f675533d8cdcb294d86cc083d7757d69b71e6e8
-
-Fail-safe already in the upstream installer
-  cloneFinished asserts the git command returned 0. A failed clone does not
-  move a partial tree into /data/openpilot. branchMigration only renames
-  release3 and release3-staging, so this branch name is not rewritten.
-
-Dynamic dependencies, from readelf -d on this ELF (not from a text search)
-  Interpreter: /lib/ld-linux-aarch64.so.1
-  DT_NEEDED, in order:
+Download
+  https://raw.githubusercontent.com/ANSR42/notautopilot/cursor/stable-audit-report-1491/installer/comma-installer
+  SHA-256: 40486647426c251fbb446e410f675533d8cdcb294d86cc083d7757d69b71e6e8
+  Size: 2051392
+  ELF64, little endian, AArch64, PIE, interpreter /lib/ld-linux-aarch64.so.1
+  Git slot: https://github.com/ANSR42/notautopilot.git
+  Branch slot: cursor/stable-audit-report-1491
+  readelf -V: GLIBC versions through 2.38, GLIBCXX through 3.4.30.
+  DT_NEEDED, from readelf -d:
     libGLESv2_adreno.so
     libEGL_adreno.so
     libgbm.so
@@ -41,49 +17,32 @@ Dynamic dependencies, from readelf -d on this ELF (not from a text search)
     libm.so.6
     libgcc_s.so.1
     libc.so.6
-  The display backend recorded in the dynamic section is Adreno GLES/EGL plus
-  GBM. libwayland is not a DT_NEEDED entry. That does not prove the program
-  avoids Wayland, and it does not prove these SONAMEs exist on a device.
 
-Two setup contracts in this tree
+Device setup that will download this file
+  Parked read of the comma four: /VERSION is 19.9, Ubuntu 24.04.5, glibc 2.39.
+  /usr/comma/setup is a 22,996,245-byte Python zipapp, SHA-256
+  c382ce266653bad781c25e403ddea4af508aa6f3ea2eef3f568d964982fad9d6.
+  That hash is the stock factory setup in tools/agnos/patch_system_reset_image.py,
+  not the patched StarPilot setup
+  d3f66148cb25ce381f5abf33cd9e0a2eb5e7fa20b137eeb1bf226d05534fc32f.
+  The extracted mici setup keeps a download only when the first four bytes are
+  7f 45 4c 46, writes /tmp/installer and /tmp/installer_url, and sends
+  User-Agent AGNOSSetup- plus the live /VERSION together with the device's own
+  serial and device-type headers. /usr/comma/comma.sh, SHA-256
+  bcba2b336cf0ca852786f8a58bbce407e0e9fe952c26fc5d903f6d9a34b44b4f,
+  executes /tmp/installer. While /data/continue.sh exists, comma.sh skips setup.
+  Entering this URL does not switch software on a normal boot.
 
-  Stock comma setup is system/ui/mici_setup.py and system/ui/tici_setup.py.
-  It downloads the entered URL, requires ELF magic, and renames the file to
-  /tmp/installer. For that contract, this ELF is the right file type and
-  architecture, and the padded '?' slot is the customization described in
-  selfdrive/ui/installer/installer.cc ("Leave some extra space for the fork
-  installer") and implemented again by patch_padded_binary_slot in
-  tools/agnos/patch_system_reset_image.py. The stock screen was not run.
+  The parked library list names libEGL.so.1 and libGLESv2.so.2. Those strings
+  are not the DT_NEEDED names above. ldd was not run on the device. capnp is
+  not a dependency of this ELF.
 
-  StarPilot's legacy image tool, tools/agnos/patch_system_reset_image.py,
-  says it is only for auditing the previously published 19.6.13 image and
-  that production images are built by agnos-builder, which is not in this
-  repository. The patched setup it would write does not execute a downloaded
-  installer.comma.ai ELF for an owner/branch URL. The comment at that
-  replacement says that binary cannot run in that AGNOS. It copies
-  /usr/comma/installer and rewrites only the slots
-  https://github.com/firestar5683/openpilot.git and StarPilot, and the
-  replacement URL is always https://github.com/<owner>/openpilot.git.
-  The owner/branch regular expression does not match this branch, because
-  the branch contains a slash. A full raw.githubusercontent.com URL therefore
-  falls through to the download path that the same comment rejects.
-  agnos-builder is absent, so the setup contract of a current production
-  StarPilot image is not in this tree.
+  launch_env.sh still defaults AGNOS_VERSION to 19.8.1. AGNOS_ACCEPTED_VERSIONS
+  includes the measured 19.9 so launch_chffrplus.sh does not flash
+  system/hardware/tici/agnos.json for that /VERSION. The manifest was not edited.
 
-This ELF was not executed. Nothing here reads a device /VERSION or
-/usr/comma/setup. Stock setup accepting an ELF does not establish that a
-StarPilot AGNOS image will run this binary.
+  installer.comma.ai/ANSR42 still looks up the missing ANSR42/openpilot repository
+  and returns HTTP 409 to a real comma four header. This raw URL is the file
+  the setup download accepts.
 
-Read-only check before anyone enters the URL, from a shell already on the
-device. This does not install, reset, or flash:
-
-  cat /VERSION
-  python3 -c 'p=open("/usr/comma/setup","rb").read(); print("patched_setup", b"file:///usr/comma/installer" in p)'
-  readelf -d /usr/comma/installer | grep NEEDED
-
-patched_setup True means the legacy bundled-installer setup is what will
-run. This raw ELF is then the binary that patch declines to execute, and
-the bundled slot cannot name notautopilot. patched_setup False means the
-stock download-ELF setup is present; this URL matches that contract only.
-Compare the NEEDED lines with the list above before treating the bundled
-installer as the same binary.
+This ELF was not executed.

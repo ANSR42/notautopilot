@@ -63,4 +63,22 @@ def test_committed_installer_is_the_aarch64_elf_for_this_repo_and_branch():
   assert data.count(NEW_URL + b"?") == 1
   assert OLD_URL not in data
   assert data.count(BRANCH + b"?") == 1
+  assert BRANCH == b"cursor/stable-audit-report-1491"
   assert b"https://github.com/commaai/openpilot.git?" not in data
+
+
+def test_symbol_versions_fit_glibc_2_39():
+  import re
+  import subprocess
+
+  output = subprocess.run(["readelf", "-V", str(ELF)], check=True, capture_output=True, text=True).stdout
+  glibc = [tuple(int(part) for part in match.split(".")) for match in re.findall(r"GLIBC_([0-9.]+)", output)]
+  cxx = [tuple(int(part) for part in match.split(".")) for match in re.findall(r"GLIBCXX_([0-9.]+)", output)]
+  assert glibc and max(glibc) <= (2, 39)
+  assert cxx and max(cxx) <= (3, 4, 30)
+
+
+def test_launch_accepts_measured_agnos_19_9_without_replacing_the_build_pin():
+  text = (ROOT / "launch_env.sh").read_text(encoding="utf-8")
+  assert 'export AGNOS_VERSION="19.8.1"' in text
+  assert "19.9" in text.split("AGNOS_ACCEPTED_VERSIONS=", 1)[1].split("\n", 1)[0]
