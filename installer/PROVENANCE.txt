@@ -1,6 +1,10 @@
 Comma setup installer for ANSR42/notautopilot branch cursor/alc-test-install-1491.
-This branch adds the default-off blinker lane-change port. The visual-only
-installer remains on cursor/stable-audit-report-1491.
+This branch adds the default-off blinker lane-change port on the existing
+NudgelessLaneChange setting. It uses the carState blind-spot boolean from
+sunnypilot pull request 653. A false boolean is not a measured gap, and this
+port does not claim the maneuver is safe. The extra speed gate is above 25 mph.
+Upstream uses 20 mph. The visual-only installer remains on
+cursor/stable-audit-report-1491.
 
 Download
   https://raw.githubusercontent.com/ANSR42/notautopilot/cursor/alc-test-install-1491/installer/comma-installer
