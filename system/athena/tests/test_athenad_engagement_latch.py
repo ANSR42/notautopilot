@@ -1,59 +1,79 @@
+import ast
+import subprocess
+from datetime import datetime
 from pathlib import Path
 
-from openpilot.system.athena.crash_policy import ATHENA_LATCHES_ENGAGEMENT
-from openpilot.system.error_log_files import ENGAGEMENT_LATCH_NAME, write_exception_files
-
+ROOT = Path(__file__).resolve().parents[3]
+INSTALLED = "46c84f7dd06614dd50681d8f9dc2f389d0829941"
+RESTORED = (
+    "system/sentry.py",
+    "system/manager/process.py",
+    "system/athena/manage_athenad.py",
+)
 ATHENA_TRACE = """\
 Traceback (most recent call last):
   File "/data/openpilot/system/athena/athenad.py", line 30, in <module>
     from jsonrpc import JSONRPCResponseManager, dispatcher
 ModuleNotFoundError: No module named 'jsonrpc'
 """
+CONTROL_TRACE = "controlsd failed\n" + ("x\n" * 12) + "final line\n"
 
 
-def test_athena_does_not_arm_engagement_latch():
-  assert ATHENA_LATCHES_ENGAGEMENT is False
+def _installed_bytes(rel: str) -> bytes:
+    return subprocess.check_output(["git", "show", f"{INSTALLED}:{rel}"], cwd=ROOT)
 
 
-def test_athena_crash_keeps_timestamped_log_without_error_txt(tmp_path: Path):
-  write_exception_files(
-    tmp_path,
-    ATHENA_TRACE,
-    "2026-11-08--15-15-00.log",
-    crash_log=True,
-    latch_engagement=ATHENA_LATCHES_ENGAGEMENT,
-  )
-
-  stamped = (tmp_path / "2026-11-08--15-15-00.log").read_text()
-  assert "No module named 'jsonrpc'" in stamped
-  assert not (tmp_path / ENGAGEMENT_LATCH_NAME).exists()
+def _function_source(text: str, name: str) -> str:
+    tree = ast.parse(text)
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            segment = ast.get_source_segment(text, node)
+            assert segment is not None
+            return segment
+    raise AssertionError(name)
 
 
-def test_control_crash_still_writes_engagement_latch(tmp_path: Path):
-  write_exception_files(
-    tmp_path,
-    "controlsd\n" + ("x\n" * 12) + "final line\n",
-    "2026-11-08--15-15-01.log",
-    crash_log=True,
-    latch_engagement=True,
-  )
-
-  latch = (tmp_path / ENGAGEMENT_LATCH_NAME).read_text().splitlines()
-  assert latch[-1] == "final line"
-  assert len(latch) == 10
-  assert "controlsd" not in (tmp_path / ENGAGEMENT_LATCH_NAME).read_text()
+def test_latch_sources_match_installed_46c84f7():
+    for rel in RESTORED:
+        assert (ROOT / rel).read_bytes() == _installed_bytes(rel)
+    assert not (ROOT / "system/error_log_files.py").exists()
+    assert not (ROOT / "system/athena/crash_policy.py").exists()
 
 
-def test_athena_crash_does_not_clear_an_existing_control_latch(tmp_path: Path):
-  latch = tmp_path / ENGAGEMENT_LATCH_NAME
-  latch.write_text("controlsd failed\n")
+def test_capture_exception_and_save_exception_match_installed_text():
+    current = (ROOT / "system/sentry.py").read_text(encoding="utf-8")
+    installed = _installed_bytes("system/sentry.py").decode("utf-8")
+    for name in ("capture_exception", "save_exception"):
+        assert _function_source(current, name) == _function_source(installed, name)
+    assert "latch_engagement" not in current
 
-  write_exception_files(
-    tmp_path,
-    ATHENA_TRACE,
-    "2026-11-08--15-15-02.log",
-    crash_log=True,
-    latch_engagement=ATHENA_LATCHES_ENGAGEMENT,
-  )
 
-  assert latch.read_text() == "controlsd failed\n"
+def _reference_write(directory: Path, exc_text: str, crash_log: bool, stamp: str) -> None:
+    files = [directory / stamp, directory / "error.txt"]
+    for file_path in files:
+        if file_path.name == "error.txt" and crash_log:
+            file_path.write_text("\n".join(exc_text.splitlines()[-10:]))
+        else:
+            file_path.write_text(exc_text)
+
+
+def _run_save_exception(directory: Path, exc_text: str, crash_log: bool) -> None:
+    source = _function_source((ROOT / "system/sentry.py").read_text(encoding="utf-8"), "save_exception")
+    namespace = {"datetime": datetime, "ERROR_LOGS_PATH": directory}
+    exec(source, namespace)
+    namespace["save_exception"](exc_text, crash_log)
+
+
+def test_control_and_athena_crashes_still_write_the_same_latch(tmp_path: Path):
+    for label, exc_text in (("athena", ATHENA_TRACE), ("control", CONTROL_TRACE)):
+        live = tmp_path / label / "live"
+        reference = tmp_path / label / "reference"
+        live.mkdir(parents=True)
+        reference.mkdir()
+        _run_save_exception(live, exc_text, True)
+        stamped = [path for path in live.iterdir() if path.name != "error.txt"]
+        assert len(stamped) == 1
+        _reference_write(reference, exc_text, True, stamped[0].name)
+        assert (live / "error.txt").read_bytes() == (reference / "error.txt").read_bytes()
+        assert stamped[0].read_bytes() == (reference / stamped[0].name).read_bytes()
+        assert (live / "error.txt").read_bytes()

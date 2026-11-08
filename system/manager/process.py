@@ -413,7 +413,7 @@ def _capture_watchdog_debug_dump(name: str, pid: int, reason: str, dt: float) ->
     cloudlog.exception(f"failed to capture watchdog debug dump for {name} pid={pid}")
 
 
-def launcher(proc: str, name: str, nice: int | None = None, latch_engagement: bool = True) -> None:
+def launcher(proc: str, name: str, nice: int | None = None) -> None:
   try:
     if nice is not None:
       os.nice(nice)
@@ -438,7 +438,7 @@ def launcher(proc: str, name: str, nice: int | None = None, latch_engagement: bo
   except Exception:
     # can't install the crash handler because sys.excepthook doesn't play nice
     # with threads, so catch it here.
-    sentry.capture_exception(latch_engagement=latch_engagement)
+    sentry.capture_exception()
     raise
 
 
