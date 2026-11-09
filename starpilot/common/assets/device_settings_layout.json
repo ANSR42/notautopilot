@@ -3032,8 +3032,8 @@
       {
         "key": "CameraView",
         "label": "Camera View",
-        "description": "Choose which camera feed the driving screen uses: Auto, Driver, Standard, or Wide.",
-        "picker_description": "Chooses the camera feed used by the driving screen.",
+        "description": "Choose the driving picture: Auto, Driver, Standard, Wide, or Autopilot. Autopilot is a one-lane view of this car, the lane lines, and the lead car. Standard stays the default.",
+        "picker_description": "Chooses the driving picture. Autopilot is the one-lane view.",
         "data_type": "int",
         "ui_type": "dropdown",
         "options": [
@@ -3052,6 +3052,10 @@
           {
             "value": 3,
             "label": "Wide"
+          },
+          {
+            "value": 5,
+            "label": "Autopilot"
           }
         ],
         "parent_key": "QOLVisuals",

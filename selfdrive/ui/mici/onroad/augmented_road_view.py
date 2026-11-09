@@ -54,6 +54,7 @@ CAMERA_VIEW_DRIVER = 1
 CAMERA_VIEW_STANDARD = 2
 CAMERA_VIEW_WIDE = 3
 CAMERA_VIEW_NONE = 4
+CAMERA_VIEW_AUTOPILOT = 5
 
 
 class BookmarkState(IntEnum):
@@ -701,7 +702,8 @@ class AugmentedRoadView(CameraView):
   def _render(self, _):
     start_draw = time.monotonic()
     camera_view = self._camera_view()
-    camera_view_none = camera_view == CAMERA_VIEW_NONE
+    autopilot = camera_view == CAMERA_VIEW_AUTOPILOT
+    camera_view_none = camera_view == CAMERA_VIEW_NONE or autopilot
     self._switch_stream_if_needed(ui_state.sm, camera_view)
 
     # Update calibration before rendering
@@ -725,7 +727,10 @@ class AugmentedRoadView(CameraView):
     )
 
     # Render the base camera view
-    if camera_view_none:
+    if autopilot:
+      from openpilot.selfdrive.ui.onroad.autopilot_view.view import render as render_autopilot_view
+      render_autopilot_view(self._content_rect, ui_state.sm)
+    elif camera_view_none:
       rl.draw_rectangle_rec(self._content_rect, rl.BLACK)
     else:
       gui_app.mark_progress("mici.onroad.before_camera")
@@ -893,12 +898,13 @@ class AugmentedRoadView(CameraView):
   @staticmethod
   def _camera_view() -> int:
     camera_view = ui_state.ui_params.get_int("CameraView", return_default=True, default=CAMERA_VIEW_STANDARD)
-    if camera_view not in (CAMERA_VIEW_AUTO, CAMERA_VIEW_DRIVER, CAMERA_VIEW_STANDARD, CAMERA_VIEW_WIDE, CAMERA_VIEW_NONE):
+    if camera_view not in (CAMERA_VIEW_AUTO, CAMERA_VIEW_DRIVER, CAMERA_VIEW_STANDARD, CAMERA_VIEW_WIDE,
+                           CAMERA_VIEW_NONE, CAMERA_VIEW_AUTOPILOT):
       return CAMERA_VIEW_STANDARD
     return camera_view
 
   def _switch_stream_if_needed(self, sm, camera_view: int):
-    if camera_view == CAMERA_VIEW_NONE:
+    if camera_view in (CAMERA_VIEW_NONE, CAMERA_VIEW_AUTOPILOT):
       self._cancel_pending_switch()
       self._reverse_driver_camera_frames = 0
       self._reverse_driver_camera_active = False

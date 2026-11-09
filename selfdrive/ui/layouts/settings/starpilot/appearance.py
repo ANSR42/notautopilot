@@ -33,7 +33,11 @@ THEME_KEY_CONFIG = {
 }
 
 COLOR_PRESETS = ["Stock", "#FFFFFF", "#178644", "#3B82F6", "#E63956", "#8B5CF6", "#F59E0B"]
-CAMERA_VIEWS = ["Auto", "Driver", "Standard", "Wide"]
+# Values are the stored CameraView integers. 4 is the hidden "None" mode.
+# Autopilot is 5 so it does not collide with None, and the default stays Standard (2).
+CAMERA_VIEW_CHOICES = ((0, "Auto"), (1, "Driver"), (2, "Standard"), (3, "Wide"), (5, "Autopilot"))
+CAMERA_VIEW_LABELS = {value: label for value, label in CAMERA_VIEW_CHOICES}
+CAMERA_VIEW_LABELS[4] = "None"
 
 # Keys are the int values stored in DeveloperSidebarMetric{1..7}; values are the
 # human-readable labels shown in both the row value and the picker dialog.
@@ -400,7 +404,7 @@ class StarPilotAppearanceLayout(_SettingsPage):
         self._system_rows = [
             SettingRow("CameraView", "value", tr_noop("Camera View"),
                        subtitle="",
-                       get_value=lambda: tr(CAMERA_VIEWS[self._params.get_int("CameraView", return_default=True, default=2)]),
+                       get_value=lambda: tr(CAMERA_VIEW_LABELS.get(self._params.get_int("CameraView", return_default=True, default=2), "Standard")),
                        on_click=self._show_camera_view_selector),
             SettingRow("DriverCamera", "toggle", tr_noop("Driver Camera"),
                        subtitle="",
@@ -607,13 +611,17 @@ class StarPilotAppearanceLayout(_SettingsPage):
 
     def _show_camera_view_selector(self):
         current = self._params.get_int("CameraView", return_default=True, default=2)
+        labels = [label for _value, label in CAMERA_VIEW_CHOICES]
+        current_label = CAMERA_VIEW_LABELS.get(current, "Standard")
+        if current_label not in labels:
+            current_label = "Standard"
+        values = {label: value for value, label in CAMERA_VIEW_CHOICES}
 
         def on_select(res):
             if res == DialogResult.CONFIRM and dialog.selection:
-                idx = CAMERA_VIEWS.index(dialog.selection)
-                self._params.put_int("CameraView", idx)
+                self._params.put_int("CameraView", values[dialog.selection])
 
-        dialog = MultiOptionDialog(tr("Camera View"), CAMERA_VIEWS, CAMERA_VIEWS[current], callback=on_select)
+        dialog = MultiOptionDialog(tr("Camera View"), labels, current_label, callback=on_select)
         gui_app.push_widget(dialog)
 
     # ── Color selectors ──
