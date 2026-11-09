@@ -60,6 +60,7 @@ SAFE_MODE_MANAGED_KEYS = (
   "LaneDetectionWidth",
   "MinimumLaneChangeSpeed",
   "NudgelessLaneChange",
+  "NudgelessLaneChangeBsmDelay",
   "NudgelessLaneChangeOnlyWhenEngaged",
   "OneLaneChange",
   "NNFF",

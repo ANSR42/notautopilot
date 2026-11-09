@@ -1,0 +1,15 @@
+Pure-Python crcmod 1.7, unpacked from the upstream sdist.
+
+Source: https://files.pythonhosted.org/packages/6b/b0/e595ce2a2527e169c3bcd6c33d2473c1918e0b7f6826a043ca1245dd4e5b/crcmod-1.7.tar.gz
+sha256: dc7051a0db5f2bd48665a990d3ec1cc305a466a77358ca4492826f41f283601e
+Version pin: uv.lock package crcmod 1.7
+License: crcmod/LICENSE (Raymond L. Buvel and Craig McQueen, 2010)
+
+Copied without modification from crcmod-1.7/python3/crcmod/:
+  __init__.py, crcmod.py, predefined.py, _crcfunpy.py, test.py
+The optional C extension python3/src/_crcfunext.c is not included.
+crcmod.py imports crcmod._crcfunpy when that extension is absent.
+
+launch_chffrplus.sh puts this directory's parent, starpilot/third_party,
+at the front of PYTHONPATH before the repository root. import crcmod
+resolves here on a device whose /usr/local/venv cannot be written.

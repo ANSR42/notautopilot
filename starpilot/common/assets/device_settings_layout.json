@@ -186,8 +186,18 @@
       {
         "key": "NudgelessLaneChange",
         "label": "Automatic Lane Changes",
-        "description": "When the turn signal is on, openpilot will automatically change lanes. If a vehicle is detected in the blind spot, the lane change waits until it is clear. No steering-wheel nudge required!",
+        "description": "Off by default. When on, the blinker can start a lane change without a steering nudge after Lane Change Delay, above 25 mph. The blind-spot check is the car's blind-spot indicator. A false indicator is not a measured gap. sunnypilot's own speed floor is 20 mph; 25 mph is this port's added limit.",
         "picker_description": "Changes lanes automatically when the turn signal is on.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "LaneChanges",
+        "settings_tier": "simple"
+      },
+      {
+        "key": "NudgelessLaneChangeBsmDelay",
+        "label": "Delay with Blind Spot",
+        "description": "Off by default. While the blinker-side blind-spot indicator is on, restart the lane-change delay. This uses the same indicator boolean as the lane-change block.",
+        "picker_description": "Restart the blinker delay while the blind-spot indicator is on.",
         "data_type": "bool",
         "ui_type": "toggle",
         "parent_key": "LaneChanges",
@@ -3022,8 +3032,8 @@
       {
         "key": "CameraView",
         "label": "Camera View",
-        "description": "Choose which camera feed the driving screen uses: Auto, Driver, Standard, or Wide.",
-        "picker_description": "Chooses the camera feed used by the driving screen.",
+        "description": "Choose the driving picture: Auto, Driver, Standard, Wide, or Autopilot. Autopilot is a one-lane view of this car, the lane lines, and the lead car. Standard stays the default.",
+        "picker_description": "Chooses the driving picture. Autopilot is the one-lane view.",
         "data_type": "int",
         "ui_type": "dropdown",
         "options": [
@@ -3042,6 +3052,10 @@
           {
             "value": 3,
             "label": "Wide"
+          },
+          {
+            "value": 5,
+            "label": "Autopilot"
           }
         ],
         "parent_key": "QOLVisuals",

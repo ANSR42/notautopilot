@@ -115,7 +115,19 @@ def engaged_icon_source(texture_width: float, texture_height: float) -> tuple[fl
 
 
 def _contains(container, key) -> bool:
-  try:
+  """Whether a service name is subscribed.
+
+  A dict stores the samples directly. SubMaster stores them in ``data`` and
+  lists the names in ``services``. SubMaster implements ``__getitem__`` and
+  not ``__contains__``, so ``name in sm`` calls ``__getitem__(0)`` and raises
+  ``KeyError`` instead of stopping at ``IndexError``.
+  """
+  data = getattr(container, "data", None)
+  if isinstance(data, dict):
+    return key in data
+  services = getattr(container, "services", None)
+  if isinstance(services, (list, tuple, set, frozenset)):
+    return key in services
+  if isinstance(container, dict):
     return key in container
-  except TypeError:
-    return False
+  return False

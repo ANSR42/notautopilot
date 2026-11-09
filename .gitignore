@@ -132,5 +132,7 @@ Pipfile
 !msgq_repo/msgq/ipc_pyx.so
 !msgq_repo/msgq/visionipc/visionipc_pyx.so
 !rednose_repo/rednose/helpers/ekf_sym_pyx.so
+!starpilot/third_party/cv2/*.so
+!starpilot/third_party/opencv_python_headless.libs/*.so
 !panda/board/obj/
 !panda/board/obj/**

@@ -1,0 +1,15 @@
+opencv-python-headless 4.11.0.86 for CPython 3.12 on aarch64.
+
+Wheel:
+  https://files.pythonhosted.org/packages/45/be/1438ce43ebe65317344a87e4b150865c5585f4c0db880a34cdae5ac46881/opencv_python_headless-4.11.0.86-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+  sha256: 6efabcaa9df731f29e5ea9051776715b1bdd1845d7c9530065c7951d2a2899eb
+  size: 29487060
+Lock: uv.lock package opencv-python-headless 4.11.0.86
+Wheel metadata requires numpy >= 1.26.0 on Python 3.12. numpy is already in the AGNOS venv and is not vendored here.
+
+Unpacked next to this file so import cv2 works when starpilot/third_party is on PYTHONPATH.
+cv2/cv2.abi3.so records RPATH $ORIGIN/../opencv_python_headless.libs.
+Its non-bundled SONAMEs are libz.so.1, libpthread.so.0, libdl.so.2,
+libstdc++.so.6, libm.so.6, libgcc_s.so.1, libc.so.6, and ld-linux-aarch64.so.1.
+The OpenCV, ffmpeg, openblas, png, and gfortran libraries are the copies in
+opencv_python_headless.libs. This host cannot execute the aarch64 module.

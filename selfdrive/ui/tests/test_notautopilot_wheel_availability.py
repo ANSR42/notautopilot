@@ -11,6 +11,7 @@ from openpilot.selfdrive.ui.onroad.notautopilot_engaged import (
   ENGAGED,
   HIDDEN,
   badge_presentation,
+  badge_presentation_from_ui,
   engaged_path_rgba,
   show_notautopilot_engaged_icon,
 )
@@ -40,6 +41,51 @@ def test_blocked_override_aol_and_stale_stay_hidden():
   assert _mark(State.disabled, True, car_valid=False) == HIDDEN
   # Enabled without lateral control is not the blue badge and is not "available".
   assert _mark(State.enabled, True, lat=False, long=True) == HIDDEN
+
+
+class _SubMaster:
+  """The membership contract of cereal.messaging.SubMaster, without sockets."""
+
+  def __init__(self, services, values, valid):
+    self.services = list(services)
+    self.data = dict(values)
+    self.valid = dict(valid)
+    self.sock = {name: object() for name in services}
+    self.updated = {name: True for name in services}
+    self.alive = {name: True for name in services}
+
+  def __getitem__(self, key):
+    return self.data[key]
+
+
+def test_badge_uses_submaster_data_and_does_not_probe_integer_keys():
+  sm = _SubMaster(
+    ["selfdriveState", "carState", "carControl"],
+    {
+      "selfdriveState": SimpleNamespace(state=State.disabled, engageable=True),
+      "carState": SimpleNamespace(),
+      "carControl": SimpleNamespace(latActive=False, longActive=False),
+    },
+    {"selfdriveState": True, "carState": True, "carControl": True},
+  )
+  try:
+    "selfdriveState" in sm
+  except KeyError as exc:
+    assert exc.args == (0,)
+  else:
+    raise AssertionError("SubMaster membership must not succeed through integer getitem")
+
+  ui = SimpleNamespace(sm=sm, has_longitudinal_control=True, always_on_lateral_active=False)
+  assert badge_presentation_from_ui(ui) == AVAILABLE
+
+  sm.data["selfdriveState"] = SimpleNamespace(state=State.enabled, engageable=True)
+  sm.data["carControl"] = SimpleNamespace(latActive=True, longActive=True)
+  assert badge_presentation_from_ui(ui) == ENGAGED
+
+  sm.data["selfdriveState"] = SimpleNamespace(state=State.disabled, engageable=True)
+  sm.data["carControl"] = SimpleNamespace(latActive=False, longActive=False)
+  sm.valid["carState"] = False
+  assert badge_presentation_from_ui(ui) == HIDDEN
 
 
 def test_blue_path_gate_ignores_engageable():

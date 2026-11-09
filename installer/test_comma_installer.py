@@ -4,11 +4,20 @@ import hashlib
 import struct
 from pathlib import Path
 
-from installer.build_comma_installer import BRANCH, NEW_URL, OLD_URL, patch_git_url
+from installer.build_comma_installer import BRANCH, NEW_URL, OLD_BRANCH, OLD_URL, patch_branch, patch_git_url
 
 ROOT = Path(__file__).resolve().parents[1]
 ELF = ROOT / "installer" / "comma-installer"
-EXPECTED_SHA256 = "40486647426c251fbb446e410f675533d8cdcb294d86cc083d7757d69b71e6e8"
+EXPECTED_SHA256 = "c32b709367745d95b252cff18cc2c6e3606722c10c5a5e0b240f593cc78266a5"
+
+
+def test_patch_branch_keeps_the_notautopilot_url_slot():
+  base = NEW_URL + b"?" + b" " * 20 + b"\x00" + OLD_BRANCH + b"?" + b" " * 40 + b"\x00tail"
+  patched = patch_branch(base)
+  assert len(patched) == len(base)
+  assert patched.count(BRANCH + b"?") == 1
+  assert OLD_BRANCH not in patched
+  assert patched.count(NEW_URL + b"?") == 1
 
 
 def test_patch_keeps_size_and_replaces_only_the_url_slot():
@@ -52,6 +61,21 @@ def test_starpilot_bundled_setup_cannot_name_notautopilot():
   assert pattern.fullmatch("https://installer.comma.ai/ANSR42/notautopilot").groups() == ("ANSR42", "notautopilot")
 
 
+def _version_tuple(text: str) -> tuple[int, ...]:
+  return tuple(int(part) for part in text.split("."))
+
+
+def test_needed_glibc_is_within_the_measured_19_9_loader():
+  import re
+  import subprocess
+  output = subprocess.run(["readelf", "-V", str(ELF)], check=True, capture_output=True, text=True).stdout
+  glibc = {_version_tuple(match) for match in re.findall(r"GLIBC_([0-9.]+)", output)}
+  cxx = {_version_tuple(match) for match in re.findall(r"GLIBCXX_([0-9.]+)", output)}
+  assert glibc
+  assert max(glibc) <= (2, 39)
+  assert max(cxx) <= (3, 4, 30)
+
+
 def test_committed_installer_is_the_aarch64_elf_for_this_repo_and_branch():
   data = ELF.read_bytes()
   assert hashlib.sha256(data).hexdigest() == EXPECTED_SHA256
@@ -63,19 +87,9 @@ def test_committed_installer_is_the_aarch64_elf_for_this_repo_and_branch():
   assert data.count(NEW_URL + b"?") == 1
   assert OLD_URL not in data
   assert data.count(BRANCH + b"?") == 1
-  assert BRANCH == b"cursor/stable-audit-report-1491"
+  assert BRANCH == b"cursor/alc-test-install-1491"
+  assert OLD_BRANCH not in data
   assert b"https://github.com/commaai/openpilot.git?" not in data
-
-
-def test_symbol_versions_fit_glibc_2_39():
-  import re
-  import subprocess
-
-  output = subprocess.run(["readelf", "-V", str(ELF)], check=True, capture_output=True, text=True).stdout
-  glibc = [tuple(int(part) for part in match.split(".")) for match in re.findall(r"GLIBC_([0-9.]+)", output)]
-  cxx = [tuple(int(part) for part in match.split(".")) for match in re.findall(r"GLIBCXX_([0-9.]+)", output)]
-  assert glibc and max(glibc) <= (2, 39)
-  assert cxx and max(cxx) <= (3, 4, 30)
 
 
 def test_launch_accepts_measured_agnos_19_9_without_replacing_the_build_pin():

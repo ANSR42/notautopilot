@@ -17,6 +17,7 @@ from openpilot.common.constants import CV
 from openpilot.common.realtime import set_core_affinity
 from openpilot.common.swaglog import cloudlog
 from openpilot.starpilot.common.cpu_throttle import device_cpu_throttle_factor
+from openpilot.starpilot.system.onnx_input_shape import first_input_dims
 from openpilot.system.hardware import PC
 
 RUNTIME_LOOP_HZ = 30
@@ -1014,6 +1015,14 @@ class SpeedLimitVisionDaemon:
 
   @staticmethod
   def _read_onnx_square_input_size(model_path, default_size=DEFAULT_DETECTOR_INPUT_SIZE, candidates=DETECTOR_INPUT_SIZE_CANDIDATES):
+    # The checked-in US detector graph input is [1, 3, 256, 256]. Its attention
+    # Reshape mask is [1, 2, 128, 64], whose product equals 1*256*8*8. OpenCV
+    # 4.11 DNN with a 640 blob builds that layer as [1, 256, 20, 20] and rejects
+    # the mask. Read the static dims from the file. The onnx package is not
+    # installed on AGNOS 19.9, and the old fallback was the 640 default.
+    dims = first_input_dims(model_path)
+    if dims is not None and len(dims) >= 4 and dims[2] == dims[3] and dims[2] in candidates:
+      return int(dims[2])
     try:
       import onnx
 

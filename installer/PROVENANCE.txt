@@ -1,13 +1,18 @@
-Comma setup installer for ANSR42/notautopilot branch cursor/stable-audit-report-1491.
-This branch is the visual-only candidate. It does not contain the blinker lane-change port.
+Comma setup installer for ANSR42/notautopilot branch cursor/alc-test-install-1491.
+This branch adds the default-off blinker lane-change port on the existing
+NudgelessLaneChange setting. It uses the carState blind-spot boolean from
+sunnypilot pull request 653. A false boolean is not a measured gap, and this
+port does not claim the maneuver is safe. The extra speed gate is above 25 mph.
+Upstream uses 20 mph. The visual-only installer remains on
+cursor/stable-audit-report-1491.
 
 Download
-  https://raw.githubusercontent.com/ANSR42/notautopilot/cursor/stable-audit-report-1491/installer/comma-installer
-  SHA-256: 40486647426c251fbb446e410f675533d8cdcb294d86cc083d7757d69b71e6e8
+  https://raw.githubusercontent.com/ANSR42/notautopilot/cursor/alc-test-install-1491/installer/comma-installer
+  SHA-256: c32b709367745d95b252cff18cc2c6e3606722c10c5a5e0b240f593cc78266a5
   Size: 2051392
   ELF64, little endian, AArch64, PIE, interpreter /lib/ld-linux-aarch64.so.1
   Git slot: https://github.com/ANSR42/notautopilot.git
-  Branch slot: cursor/stable-audit-report-1491
+  Branch slot: cursor/alc-test-install-1491
   readelf -V: GLIBC versions through 2.38, GLIBCXX through 3.4.30.
   DT_NEEDED, from readelf -d:
     libGLESv2_adreno.so
@@ -18,31 +23,12 @@ Download
     libgcc_s.so.1
     libc.so.6
 
-Device setup that will download this file
-  Parked read of the comma four: /VERSION is 19.9, Ubuntu 24.04.5, glibc 2.39.
-  /usr/comma/setup is a 22,996,245-byte Python zipapp, SHA-256
-  c382ce266653bad781c25e403ddea4af508aa6f3ea2eef3f568d964982fad9d6.
-  That hash is the stock factory setup in tools/agnos/patch_system_reset_image.py,
-  not the patched StarPilot setup
-  d3f66148cb25ce381f5abf33cd9e0a2eb5e7fa20b137eeb1bf226d05534fc32f.
-  The extracted mici setup keeps a download only when the first four bytes are
-  7f 45 4c 46, writes /tmp/installer and /tmp/installer_url, and sends
-  User-Agent AGNOSSetup- plus the live /VERSION together with the device's own
-  serial and device-type headers. /usr/comma/comma.sh, SHA-256
-  bcba2b336cf0ca852786f8a58bbce407e0e9fe952c26fc5d903f6d9a34b44b4f,
-  executes /tmp/installer. While /data/continue.sh exists, comma.sh skips setup.
-  Entering this URL does not switch software on a normal boot.
+The parked comma four setup, /usr/comma/setup SHA-256
+c382ce266653bad781c25e403ddea4af508aa6f3ea2eef3f568d964982fad9d6, keeps a
+download only when the first four bytes are ELF magic. /usr/comma/comma.sh
+executes /tmp/installer. While /data/continue.sh exists, boot skips setup.
+The parked names libEGL.so.1 and libGLESv2.so.2 are not these DT_NEEDED
+strings. ldd was not run. This ELF was not executed.
 
-  The parked library list names libEGL.so.1 and libGLESv2.so.2. Those strings
-  are not the DT_NEEDED names above. ldd was not run on the device. capnp is
-  not a dependency of this ELF.
-
-  launch_env.sh still defaults AGNOS_VERSION to 19.8.1. AGNOS_ACCEPTED_VERSIONS
-  includes the measured 19.9 so launch_chffrplus.sh does not flash
-  system/hardware/tici/agnos.json for that /VERSION. The manifest was not edited.
-
-  installer.comma.ai/ANSR42 still looks up the missing ANSR42/openpilot repository
-  and returns HTTP 409 to a real comma four header. This raw URL is the file
-  the setup download accepts.
-
-This ELF was not executed.
+launch_env.sh still defaults AGNOS_VERSION to 19.8.1 and accepts the measured
+19.9 so boot does not flash system/hardware/tici/agnos.json.

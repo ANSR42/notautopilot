@@ -150,3 +150,5 @@ class MainLayout(Widget):
 
     if has_dev:
       self._dev_sidebar.render(self._dev_sidebar_rect)
+    from openpilot.selfdrive.ui.tripstats.widget import render as render_trip_summary
+    render_trip_summary(self._rect)

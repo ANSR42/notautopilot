@@ -7,6 +7,7 @@ from cereal import log
 from openpilot.common.constants import CV
 from openpilot.common.params import Params
 from openpilot.common.realtime import DT_MDL
+from openpilot.selfdrive.controls.lib.notautopilot_auto_lane_change import USER_MIN_SPEED_MPH, BlinkerLaneChange
 
 LaneChangeState = log.LaneChangeState
 LaneChangeDirection = log.LaneChangeDirection
@@ -76,6 +77,7 @@ class DesireHelper:
     self.lane_change_completed = False
 
     self.lane_change_wait_timer = 0.0
+    self.blinker_lane_change = BlinkerLaneChange()
     self.nav_desires_allowed = False
     self.nav_lane_positioning_allowed = False
     self._nav_instruction_state_raw: object = None
@@ -353,17 +355,26 @@ class DesireHelper:
 
         if torque_applied:
           self.lane_change_wait_timer = starpilot_toggles.lane_change_delay
-        else:
-          torque_applied |= nudgeless_enabled
-          torque_applied &= self.lane_change_wait_timer >= starpilot_toggles.lane_change_delay
 
-          desired_lane_width = starpilotPlan.laneWidthLeft if self.lane_change_direction == LaneChangeDirection.left else starpilotPlan.laneWidthRight
-          torque_applied &= desired_lane_width >= starpilot_toggles.lane_detection_width
+        desired_lane_width = starpilotPlan.laneWidthLeft if self.lane_change_direction == LaneChangeDirection.left else starpilotPlan.laneWidthRight
+        self.blinker_lane_change.update(
+          nudgeless=nudgeless_enabled,
+          delay_s=starpilot_toggles.lane_change_delay,
+          bsm_delay=bool(getattr(starpilot_toggles, "nudgeless_bsm_delay", False)),
+          blindspot_detected=blindspot_detected,
+          brake_pressed=bool(getattr(carstate, "brakePressed", False)),
+        )
+        # 25 mph is the requested adaptation. Upstream PR 653 uses 20 mph.
+        nudgeless_allowed = (
+          self.blinker_lane_change.allowed
+          and v_ego > USER_MIN_SPEED_MPH * CV.MPH_TO_MS
+          and desired_lane_width >= starpilot_toggles.lane_detection_width
+        )
 
         if not one_blinker or below_lane_change_speed or self.lane_change_completed:
           self.lane_change_state = LaneChangeState.off
           self.lane_change_direction = LaneChangeDirection.none
-        elif torque_applied and not blindspot_detected:
+        elif (torque_applied or nudgeless_allowed) and not blindspot_detected:
           self.lane_change_state = LaneChangeState.laneChangeStarting
 
           self.lane_change_completed = starpilot_toggles.one_lane_change
@@ -422,6 +433,11 @@ class DesireHelper:
       self.lane_change_completed = False
 
       self.lane_change_wait_timer = 0.0
+
+    self.blinker_lane_change.note_state(
+      lane_change_off=self.lane_change_state == LaneChangeState.off and self.lane_change_direction == LaneChangeDirection.none,
+      lane_change_starting=self.lane_change_state == LaneChangeState.laneChangeStarting,
+    )
 
     nav_desire = self._navigation_desire(carstate, lateral_active, starpilotPlan, starpilot_toggles)
     if nav_desire != log.Desire.none and self.lane_change_state == LaneChangeState.off:

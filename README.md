@@ -6,6 +6,8 @@ by [@ANSR42](https://x.com/ANSR42)
 
 This repository is **notautopilot**, an unofficial branch of StarPilot. It is not maintained or endorsed by StarPilot or comma.ai. The StarPilot name, upstream attribution, licenses, and documentation below stay in place. The wheel mark in the banner is a project design asset, not an official Tesla emblem.
 
+The on-device trip summary card is adapted from [TeslaPilot](https://github.com/Memberoffoxhound/TeslaPilot) (`Highland-Dev`, `bf1ea5037812d4deb4ae44cf675b53bce41e88fd`, MIT). It records distance, engaged distance, the best engaged stretch, and a comma-connect colored timeline in `/data/notautopilot/drive_summary.json`. Nothing in that file is uploaded. Day boundaries follow the device clock. This port does not include TeslaPilot's TESLA font, theme, Home day/week row, Statistics page, web page, or "go offroad in park" behavior.
+
 # StarPilot
 
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue?logo=readthedocs&logoColor=white)](https://deepwiki.com/StarPilotHQ/StarPilot)

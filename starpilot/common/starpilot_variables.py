@@ -1188,6 +1188,7 @@ class StarPilotVariables:
       "LaneChangeCloseGapSeconds", cast=float, condition=toggle.lane_change_close_gap, default=0.6, min=0.25, max=1.0,
     )
     toggle.nudgeless = self.get_value("NudgelessLaneChange", condition=toggle.lane_changes)
+    toggle.nudgeless_bsm_delay = self.get_value("NudgelessLaneChangeBsmDelay", condition=toggle.lane_changes and toggle.nudgeless)
     toggle.nudgeless_lane_change_only_when_engaged = self.get_value("NudgelessLaneChangeOnlyWhenEngaged", condition=toggle.lane_changes and toggle.nudgeless)
     toggle.one_lane_change = self.get_value("OneLaneChange", condition=toggle.lane_changes)
 
