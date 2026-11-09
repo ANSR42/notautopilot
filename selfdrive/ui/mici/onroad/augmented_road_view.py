@@ -728,8 +728,13 @@ class AugmentedRoadView(CameraView):
 
     # Render the base camera view
     if autopilot:
-      from openpilot.selfdrive.ui.onroad.autopilot_view.view import render as render_autopilot_view
-      render_autopilot_view(self._content_rect, ui_state.sm)
+      from openpilot.selfdrive.ui.onroad.autopilot_view.view import present
+
+      def draw_standard_camera():
+        self._switch_stream_if_needed(ui_state.sm, CAMERA_VIEW_STANDARD)
+        CameraView._render(self, self._content_rect)
+
+      present(self._content_rect, ui_state.sm, draw_standard_camera)
     elif camera_view_none:
       rl.draw_rectangle_rec(self._content_rect, rl.BLACK)
     else:

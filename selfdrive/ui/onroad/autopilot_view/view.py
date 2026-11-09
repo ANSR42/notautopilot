@@ -1,15 +1,12 @@
 """Blit the one-lane raster into the onroad view. Off unless CameraView is 5."""
 from __future__ import annotations
 
-import ctypes
-
 import numpy as np
 import pyray as rl
 
+from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.ui.onroad.autopilot_view.raster import render_scene
 from openpilot.selfdrive.ui.onroad.autopilot_view.scene import build_scene
-from openpilot.selfdrive.ui.onroad.notautopilot_engaged import engaged_icon_from_ui
-from openpilot.selfdrive.ui.ui_state import ui_state
 
 # Comma four's framebuffer is 536x240. Larger screens upscale this raster.
 MAX_WIDTH = 536
@@ -21,10 +18,12 @@ class _Texture:
   def __init__(self) -> None:
     self.tex = None
     self.size = (0, 0)
+    self._pixels = None
 
   def update(self, image: np.ndarray):
     height, width = image.shape[:2]
-    rgba = np.ascontiguousarray(np.dstack([image, np.full((height, width), 255, np.uint8)]))
+    # Keep the buffer alive for the upload. pyray is cffi and rejects ctypes.c_void_p.
+    self._pixels = np.ascontiguousarray(np.dstack([image, np.full((height, width), 255, np.uint8)]))
     if self.tex is None or self.size != (width, height):
       if self.tex is not None:
         rl.unload_texture(self.tex)
@@ -33,11 +32,20 @@ class _Texture:
       rl.unload_image(blank)
       rl.set_texture_filter(self.tex, rl.TEXTURE_FILTER_BILINEAR)
       self.size = (width, height)
-    rl.update_texture(self.tex, ctypes.c_void_p(rgba.ctypes.data))
+    pointer = rl.ffi.cast("void *", rl.ffi.from_buffer(self._pixels))
+    rl.update_texture(self.tex, pointer)
     return self.tex
 
 
 _CACHE = _Texture()
+_logged_failure = False
+
+
+def _log_failure() -> None:
+  global _logged_failure
+  if not _logged_failure:
+    _logged_failure = True
+    cloudlog.exception("autopilot view")
 
 
 def frame_from_messages(model, radar, engaged: bool) -> dict:
@@ -69,6 +77,8 @@ def render(rect: rl.Rectangle, sm) -> None:
   if model is None:
     rl.draw_rectangle_rec(rect, rl.Color(219, 222, 224, 255))
     return
+  from openpilot.selfdrive.ui.onroad.notautopilot_engaged import engaged_icon_from_ui
+  from openpilot.selfdrive.ui.ui_state import ui_state
   scene = frame_from_messages(model, radar, engaged_icon_from_ui(ui_state))
   image = render_scene(scene, raster_w, raster_h)
   texture = _CACHE.update(image)
@@ -80,3 +90,12 @@ def render(rect: rl.Rectangle, sm) -> None:
     0.0,
     rl.WHITE,
   )
+
+
+def present(rect: rl.Rectangle, sm, draw_camera) -> None:
+  """Draw the one-lane view. Any failure logs once and draws the standard camera for this frame."""
+  try:
+    render(rect, sm)
+  except Exception:
+    _log_failure()
+    draw_camera()
