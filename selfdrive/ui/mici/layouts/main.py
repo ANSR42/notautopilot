@@ -89,6 +89,8 @@ class MiciMainLayout(Scroller):
 
     # Render
     super()._render(self._rect)
+    from openpilot.selfdrive.ui.tripstats.widget import render as render_trip_summary
+    render_trip_summary(self._rect)
 
   def _handle_transitions(self):
     # Don't pop if onboarding

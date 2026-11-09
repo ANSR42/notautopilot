@@ -179,6 +179,11 @@ class UIState:
     mark_progress("ui.update.before_device")
     device.update()
     mark_progress("ui.update.after_device")
+    try:
+      from openpilot.selfdrive.ui.tripstats.presenter import presenter
+      presenter.frame(self)
+    except Exception:
+      cloudlog.exception("tripstats frame")
 
   def _update_state(self, progress_hook: Callable[[str], None] | None = None) -> None:
     mark_progress = progress_hook or _noop_progress

@@ -160,3 +160,18 @@ Before publishing a third-party port:
    endorse the downstream version.
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for licensing notices.
+
+## Trip summary adapted from TeslaPilot
+
+The drive summary card and its recorder are adapted from Memberoffoxhound's TeslaPilot, MIT,
+branch `Highland-Dev` at `bf1ea5037812d4deb4ae44cf675b53bce41e88fd`
+([Memberoffoxhound/TeslaPilot](https://github.com/Memberoffoxhound/TeslaPilot)). Source files
+were `openpilot/selfdrive/ui/tripstats/` (`recorder.py`, `store.py`, `card.py`, and the UI
+session in `__init__.py`). TeslaPilot does not maintain or endorse this adaptation.
+
+Local differences: stats are a JSON file on the device, not a param; the day uses the device
+clock instead of `tzgrid.bin` (ODbL) and `weekstart.json` (Unicode CLDR); the card is drawn in
+this tree's on-road and home layouts. TeslaPilot's "go offroad in park" process is not included.
+A Tesla that stays onroad shows the card after three seconds in Park, stopped and not engaged.
+That display trigger does not change hardwared or panda safety. The TESLA font and Tesla theme
+are not included.
