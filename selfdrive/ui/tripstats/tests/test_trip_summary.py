@@ -1,5 +1,6 @@
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 from cereal import car
@@ -52,6 +53,53 @@ def test_short_stop_does_not_split_the_drive_and_three_seconds_offroad_does():
   assert done is not None
   assert done["m"] > 0
   assert not rec.active
+
+
+def test_full_screen_layout_fits_mici_and_big():
+  from openpilot.selfdrive.ui.tripstats.card import card_layout
+  from openpilot.selfdrive.ui.tripstats.recorder import COLORS, ENGAGED, MANUAL
+  cols = [("0.6", "mi", "driven"), ("40", "%", "engaged"), ("0.1", "mi", "streak"), ("1", "", "day streak")]
+  codes = "mmmmmeeeeeoooppc"
+  for width, height in ((536, 240), (2160, 1080)):
+    layout = card_layout(width, height, cols, codes)
+    assert layout["background"] == (0.0, 0.0, width, height)
+    assert len(layout["columns"]) == 4
+    centers = [col["center"] for col in layout["columns"]]
+    assert centers == sorted(centers)
+    assert centers[-1] - centers[0] > width * 0.5
+    bx, by, bw, bh = layout["timeline"]
+    assert bh >= 16
+    assert by + bh < height
+    assert bx >= 0 and bx + bw <= width
+    assert layout["segments"]
+    covered = sum(seg[2] for seg in layout["segments"])
+    assert covered > bw * 0.9
+    colors = {COLORS[seg[4]] for seg in layout["segments"]}
+    assert COLORS[ENGAGED] in colors and COLORS[MANUAL] in colors
+
+
+def test_mici_screenshots_cover_the_screen_and_show_the_timeline(tmp_path):
+  from PIL import Image
+  from openpilot.selfdrive.ui.tripstats.tests.paint_card import BG, paint_card
+  cols = [("0.6", "mi", "driven"), ("40", "%", "engaged"), ("0.1", "mi", "streak"), ("1", "", "day streak")]
+  codes = "mmmmmeeeeeoooppc"
+  out = Path("/opt/cursor/artifacts")
+  if not out.is_dir():
+    out = tmp_path
+  auto = out / "trip_card_mici_auto.png"
+  reopen = out / "trip_card_mici_reopen.png"
+  big = out / "trip_card_big.png"
+  paint_card(auto, 536, 240, "trip summary", cols, codes)
+  paint_card(reopen, 536, 240, "trip summary", cols, codes)
+  paint_card(big, 2160, 1080, "trip summary", cols, codes)
+  for path, size in ((auto, (536, 240)), (reopen, (536, 240)), (big, (2160, 1080))):
+    image = Image.open(path)
+    assert image.size == size
+    assert image.getpixel((0, 0)) == BG
+    assert image.getpixel((size[0] - 1, size[1] - 1)) == BG
+  bar = Image.open(auto)
+  colors = {bar.getpixel((x, 140)) for x in range(20, 500, 8)}
+  assert len(colors) >= 3
 
 
 def test_card_columns_timeline_and_minimum_trip():
