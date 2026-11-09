@@ -4,9 +4,41 @@ import numpy as np
 from PIL import Image
 
 from openpilot.selfdrive.ui.onroad.autopilot_view.meshes import ego_mesh, lead_mesh
+from openpilot.selfdrive.ui.onroad.autopilot_view import raster
 from openpilot.selfdrive.ui.onroad.autopilot_view.raster import render_scene
 from openpilot.selfdrive.ui.onroad.autopilot_view.scene import PATH_BLUE, build_scene, select_leads
 from openpilot.selfdrive.ui.onroad.notautopilot_engaged import PATH_BLUE_RGB
+
+
+def _view_at(eye, center, fov_deg):
+  """Same look-at matrix as the raster, with an explicit chase camera."""
+
+  def _view(width, height):
+    fov = np.radians(fov_deg)
+    aspect = width / max(1, height)
+    near, far = 0.5, 400.0
+    scale = 1.0 / np.tan(fov / 2.0)
+    persp = np.array([
+      [scale / aspect, 0, 0, 0],
+      [0, scale, 0, 0],
+      [0, 0, (far + near) / (near - far), 2 * far * near / (near - far)],
+      [0, 0, -1, 0],
+    ], dtype=np.float64)
+    eye_a = np.array(eye, dtype=np.float64)
+    center_a = np.array(center, dtype=np.float64)
+    forward = center_a - eye_a
+    forward /= np.linalg.norm(forward)
+    side = np.cross(forward, np.array([0.0, 1.0, 0.0]))
+    side /= np.linalg.norm(side)
+    up = np.cross(side, forward)
+    look = np.eye(4)
+    look[0, :3] = side
+    look[1, :3] = up
+    look[2, :3] = -forward
+    look[:3, 3] = -look[:3, :3] @ eye_a
+    return persp @ look
+
+  return _view
 
 
 def _road(engaged=True, leads=None):
@@ -60,6 +92,17 @@ def test_comma_four_frame_cost_and_screenshots():
   out.mkdir(parents=True, exist_ok=True)
   Image.fromarray(image).save(out / "autopilot_view_engaged.png")
   Image.fromarray(plain).save(out / "autopilot_view_disengaged.png")
+  previous = _view_at((0.0, 7.5, -13.5), (0.0, 0.0, 16.0), 42.0)
+  saved = raster._view
+  raster._view = previous
+  try:
+    before = render_scene(scene, 536, 240)
+  finally:
+    raster._view = saved
+  compare = Image.new("RGB", (536 * 2 + 4, 240), (12, 14, 16))
+  compare.paste(Image.fromarray(before), (0, 0))
+  compare.paste(Image.fromarray(image), (540, 0))
+  compare.save(out / "autopilot_view_angle_compare.png")
   assert image.shape == (240, 536, 3)
   assert image[0, 0].tolist() == [219, 221, 224]
   blue = (image[:, :, 2].astype(int) > image[:, :, 0].astype(int) + 40) & (image[:, :, 2] > 160)

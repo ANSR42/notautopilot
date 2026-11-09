@@ -7,9 +7,16 @@ BG = np.array([0.86, 0.87, 0.88], dtype=np.float32)
 _LIGHT = np.array([-0.3, 1.0, -0.4], dtype=np.float64)
 _LIGHT /= np.linalg.norm(_LIGHT)
 
+# Chase camera for the 536x240 frame. Lower and closer than the mockup
+# eye (0, 7.5, -13.5) looking at (0, 0, 16) with a 42° vertical FOV.
+# 44° (rather than 48°) keeps the car and lane large enough on this short screen.
+CAMERA_EYE = (0.0, 5.2, -9.5)
+CAMERA_TARGET = (0.0, 0.4, 20.0)
+CAMERA_FOV_DEG = 44.0
+
 
 def _view(width: int, height: int) -> np.ndarray:
-  fov = np.radians(42.0)
+  fov = np.radians(CAMERA_FOV_DEG)
   aspect = width / max(1, height)
   near, far = 0.5, 400.0
   t = 1.0 / np.tan(fov / 2.0)
@@ -19,8 +26,8 @@ def _view(width: int, height: int) -> np.ndarray:
     [0, 0, (far + near) / (near - far), 2 * far * near / (near - far)],
     [0, 0, -1, 0],
   ], dtype=np.float64)
-  eye = np.array([0.0, 7.5, -13.5])
-  center = np.array([0.0, 0.0, 16.0])
+  eye = np.array(CAMERA_EYE, dtype=np.float64)
+  center = np.array(CAMERA_TARGET, dtype=np.float64)
   forward = center - eye
   forward /= np.linalg.norm(forward)
   side = np.cross(forward, np.array([0.0, 1.0, 0.0]))
