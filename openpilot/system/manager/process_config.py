@@ -145,6 +145,13 @@ def livestream(started: bool, params: Params, CP: car.CarParams) -> bool:
   return params.get_bool("IsLiveStreaming")
 
 
+def dashpilot_zmq(started: bool, params: Params, CP: car.CarParams) -> bool:
+  """Read-only DashPilot bridge. The file switch defaults on; 0 stops it."""
+  from openpilot.system.dashpilot.preference import enabled
+
+  return enabled()
+
+
 def or_(*fns):
   return lambda *args: operator.or_(*(fn(*args) for fn in fns))
 
@@ -230,6 +237,8 @@ procs = [
   PythonProcess("lateral_maneuversd", "openpilot.tools.lateral_maneuvers.lateral_maneuversd", lat_maneuver),
   PythonProcess("radard", "openpilot.selfdrive.controls.radard", only_onroad),
   PythonProcess("hardwared", "openpilot.system.hardware.hardwared", always_run),
+  # Reads can and selfdriveState only. Does not publish sendcan or touch car control.
+  PythonProcess("dashpilotd", "openpilot.system.dashpilot.bridge", dashpilot_zmq, restart_on_exit=True),
   PythonProcess("modem", "openpilot.common.hardware.comma.modem", always_run, enabled=COMMA_HARDWARE),
   PythonProcess("usage_stats", "openpilot.starpilot.analytics.runtime", always_run, enabled=COMMA_HARDWARE),
   PythonProcess("tombstoned", "openpilot.system.tombstoned", always_run, enabled=not PC),
