@@ -37,11 +37,21 @@ def main() -> None:
   context, publishers = open_publishers(PUBLISHED_SERVICES)
   subscribers = []
   try:
-    for name in PUBLISHED_SERVICES:
-      subscribers.append((messaging.sub_sock(name, conflate=False), name))
-    cloudlog.info("dashpilot zmq bridge on %s", {name: service_port(name) for name in PUBLISHED_SERVICES})
+    pending = list(PUBLISHED_SERVICES)
+    logged = False
     dropped = 0
     while not stop:
+      if pending:
+        still_pending = []
+        for name in pending:
+          try:
+            subscribers.append((messaging.sub_sock(name, conflate=False), name))
+          except messaging.IpcError:
+            still_pending.append(name)
+        pending = still_pending
+        if subscribers and not logged:
+          cloudlog.info("dashpilot zmq bridge on %s", {name: service_port(name) for name in PUBLISHED_SERVICES})
+          logged = True
       got = False
       for sock, name in subscribers:
         for raw in messaging.drain_sock_raw(sock):
@@ -50,8 +60,8 @@ def main() -> None:
             dropped += 1
             if dropped == 1 or dropped % 1000 == 0:
               cloudlog.warning("dashpilot zmq bridge dropped %s payloads", dropped)
-      if not got:
-        time.sleep(0.01)
+      if not got or pending:
+        time.sleep(0.2 if pending else 0.01)
   finally:
     for sock in publishers.values():
       sock.close(linger=0)
