@@ -135,6 +135,32 @@ def test_missing_param_defaults_on_and_fallback_file_switches_off(tmp_path):
   assert prefs.sample(2_000_000_000) is True
 
 
+def test_settings_row_reads_without_check_key(tmp_path):
+  from openpilot.common.params import Params
+  from openpilot.starpilot.ui.feature_settings_owner import FeatureSettingsOwner
+
+  saved = Params(str(tmp_path))
+
+  class Blocked:
+    """Analytics and planner-selection doubles do not expose check_key."""
+
+    def get_param_path(self, key):
+      return saved.get_param_path(key)
+
+    def get_default_value(self, key):
+      return saved.get_default_value(key)
+
+    def __getattr__(self, name):
+      raise AttributeError(f"Analytics cannot use Params.{name}")
+
+  owner = FeatureSettingsOwner(Blocked(), lambda group: group == "preferences", vehicle_fingerprint=lambda: None)
+  state = owner.snapshot("profiles", parked=True, system_long=False, lateral_context=False, metric=False)
+  row = next(item for item in state.rows if item.key == KEY)
+  assert row.label == "Turn Signal Slowdown (Taco Bell)"
+  assert row.value == row.default_value == "On"
+  assert row.available and row.vehicle_fingerprint is None
+
+
 def test_registered_param_round_trip(tmp_path):
   from openpilot.common.params import Params
 

@@ -77,11 +77,17 @@ def turn_signal_ceiling(sm, CP, cruise_mps: float, *, enabled: bool) -> float | 
 
 def registered(params) -> bool:
   """The key is in params_keys.h. A checkout still running the previous prebuilt
-  libparams_c.so does not know it until that library is rebuilt."""
+  libparams_c.so does not know it until that library is rebuilt.
+
+  Settings snapshots must not require check_key: analytics wraps Params and
+  forbids that method, and some owners only implement get_param_path.
+  """
   try:
     params.check_key(KEY)
   except UnknownKeyName:
     return False
+  except AttributeError:
+    return True
   return True
 
 
@@ -119,20 +125,19 @@ def _fallback_off(root: Path | None) -> bool:
 
 
 def read_enabled(params, *, root: Path | None = None) -> tuple[bool, bytes | None, bool]:
-  """(enabled, raw, valid). A missing saved choice is on."""
-  if registered(params):
-    try:
-      raw, readable = read_saved(params, KEY, 16)
-    except (OSError, TypeError, ValueError):
-      return False, b"", False
-    if not readable or raw not in (None, b"0", b"1"):
-      return False, raw, False
-    if raw is None and _fallback_off(root):
-      return False, None, True
-    return raw in (None, b"1"), raw, True
-  raw, readable = _read_file(_storage_root(root) / KEY)
+  """(enabled, raw, valid). A missing saved choice is on.
+
+  The params file is the store the settings row writes. check_key is not
+  required: analytics forbids it, and an older libparams still has a path.
+  """
+  try:
+    raw, readable = read_saved(params, KEY, 16)
+  except (OSError, TypeError, ValueError, AttributeError, UnknownKeyName):
+    raw, readable = _read_file(_storage_root(root) / KEY)
   if not readable or raw not in (None, b"0", b"1"):
     return False, raw, False
+  if raw is None and _fallback_off(root):
+    return False, None, True
   return raw in (None, b"1"), raw, True
 
 
