@@ -81,7 +81,7 @@ from openpilot.starpilot.curve_speed.actions import ACTION_KEYS as CURVE_ACTION_
 from openpilot.starpilot.controllers.toyota_cruise import capability as toyota_cruise_capability
 
 
-GLOBAL_BOOL_PREFERENCES = frozenset((LEAD_APPROACH_KEY, LEAD_TAKEOFF_KEY, NUDGE_KEY, "DisengageOnAccelerator"))
+GLOBAL_BOOL_PREFERENCES = frozenset((LEAD_APPROACH_KEY, LEAD_TAKEOFF_KEY, NUDGE_KEY, "DisengageOnAccelerator", "TacoTune"))
 
 BOOL_DEFAULTS = {
   "GMPedalLongitudinal": False, "ForceStops": False, "AlwaysAllowUploads": False, "TurnAssist": True,
@@ -100,6 +100,7 @@ BOOL_DEFAULTS = {
   LEAD_APPROACH_KEY: False,
   LEAD_TAKEOFF_KEY: False,
   NUDGE_KEY: True,
+  "TacoTune": True,
   "DisengageOnAccelerator": False,
   CURVE_MASTER_KEY: False, CURVE_NO_LEAD_KEY: False,
   "ShowCSCStatus": False,
@@ -489,6 +490,14 @@ class FeatureSettingsOwner:
               bool(cp.notCar), bool(cp.passive), bool(cp.dashcamOnly))
     except (AttributeError, TypeError, ValueError):
       return None
+
+  def _turn_signal_slowdown_row(self):
+    from openpilot.starpilot.longitudinal.turn_signal_slowdown import KEY, LABEL, REASON, read_enabled
+    enabled, raw, valid = read_enabled(self.params)
+    return FeatureRow(KEY, LABEL, "On" if enabled else "Off" if valid else "Invalid saved value", raw,
+                      ("Off", "On") if valid and raw in (None, b"0", b"1") else (),
+                      available=self.authority("preferences") and valid and raw in (None, b"0", b"1"),
+                      default_value="On", reason=REASON if valid else "Invalid saved value")
 
   def _apply_global_bool_preference(self, request: FeatureSettingsRequest) -> bool:
     if (request.key not in GLOBAL_BOOL_PREFERENCES or request.value not in ("On", "Off") or
@@ -1179,6 +1188,7 @@ class FeatureSettingsOwner:
       rows.append(self._bool_row(NUDGE_KEY, "Experimental Speed Nudge", self.authority("preferences"),
                                 reason="Gently recovers toward set speed when Experimental mode hesitates on a clear road. " +
                                        "Leads, stops, curve limits and driver overrides retain priority."))
+      rows.append(self._turn_signal_slowdown_row())
       if self._galaxy():
         rows.append(self._bool_row("DisengageOnAccelerator", "Disengage on Accelerator Pedal", self.authority("preferences")))
       document, raw, valid = self._document()
@@ -1421,6 +1431,13 @@ class FeatureSettingsOwner:
         return False
       return save_selection(self.params, request.value, request.expected,
                             authorized=lambda: self.authority("preferences"))
+    if key == "TacoTune":
+      from openpilot.starpilot.longitudinal.turn_signal_slowdown import write_enabled
+      if (request.value not in ("On", "Off") or request.dependencies or request.capability is not None or
+          request.vehicle_fingerprint is not None or request.expected not in (None, b"0", b"1")):
+        return False
+      return write_enabled(self.params, request.value == "On", expected=request.expected,
+                           authorized=lambda: self.authority("preferences"))
     if key in GLOBAL_BOOL_PREFERENCES:
       return self._apply_global_bool_preference(request)
     if key in CRUISE_KEYS:

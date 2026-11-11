@@ -21,6 +21,7 @@ from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N, get_accel_
 from openpilot.selfdrive.car.cruise import V_CRUISE_MAX, V_CRUISE_UNSET
 from openpilot.common.swaglog import cloudlog
 from openpilot.starpilot.navigation.intent import cruise_ceiling as navigation_ceiling
+from openpilot.starpilot.longitudinal.turn_signal_slowdown import turn_signal_ceiling
 from openpilot.starpilot.car.tesla.preap_adaptive import startup_owner as preap_adaptive_owner
 from openpilot.starpilot.longitudinal.vehicle_policy import forecast_should_stop, planner_cost_owner, far_follow_owner
 from openpilot.starpilot.longitudinal.cruise_ceiling import CruiseCeiling, CurveCeiling, select_cruise_ceiling, select_curve_ceiling
@@ -146,7 +147,8 @@ class LongitudinalPlanner:
              lead_approach_key: LeadApproachKey | None = None,
              force_stop_provider: Callable[[float], StopPlan] | None = None,
              faster_lead_takeoff: bool = False, takeoff_drive_id: int = 0,
-             now_ns: int | None = None, drive_id: int = 0, wheel_coast=None, experimental_speed_nudge: bool = True):
+             now_ns: int | None = None, drive_id: int = 0, wheel_coast=None, experimental_speed_nudge: bool = True,
+             turn_signal_slowdown: bool = True):
     if curve_ceiling is not None and curve_provider is not None:
       raise ValueError('choose explicit Curve ceiling or same-cycle provider')
     if self.plan_drive_id != drive_id:
@@ -302,6 +304,11 @@ class LongitudinalPlanner:
     navigation_target = navigation_ceiling(sm, self.CP, sample_now_ns, v_cruise) if profile_eligible else None
     if navigation_target is not None:
       v_cruise = min(v_cruise, navigation_target)
+    # Same cruise ceiling as navigation: min() only, so Chill and Experimental
+    # both slow through get_cruise_accel and its existing jerk and decel limits.
+    signal_target = turn_signal_ceiling(sm, self.CP, v_cruise, enabled=turn_signal_slowdown)
+    if signal_target is not None:
+      v_cruise = min(v_cruise, signal_target)
     coast_plan = None
     if wheel_coast is not None:
       owner, wheel_params = wheel_coast
