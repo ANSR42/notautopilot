@@ -7,6 +7,7 @@ Without one, the action keeps the level and the plans only scale its shape,
 so a plan cannot start a turn by itself. The two modes crossfade in 0.5 s.
 """
 
+from contextvars import ContextVar
 import math
 
 import numpy as np
@@ -16,7 +17,7 @@ from openpilot.selfdrive.modeld.constants import ModelConstants, Plan
 
 KEY = "PathSteering"
 LABEL = "Path Steering"
-REASON = ("Steers from the driving model's recent path at low speed while a turn is signalled, " +
+REASON = ("Steers from the driving model's recent path at low speed while a turn is signaled, " +
           "and otherwise uses that path only to shape the model's steering. Fades out by about 29 mph.")
 
 FULL_ON_MPH = 20.0
@@ -28,6 +29,22 @@ MODE_BLEND_S = 0.5
 # cereal Desire.turnLeft and Desire.turnRight. Lane changes are not turns.
 _TURN_DESIRES = frozenset((1, 2))
 _MIN_PLAN_SPEED = 1.0
+# modeld binds the live controller here so the action call stays positional.
+_BOUND: ContextVar = ContextVar("path_steering", default=None)
+
+
+def bind_path_steering(controller) -> None:
+  _BOUND.set(controller if controller is not None and controller.enabled else None)
+
+
+def active_controller(explicit=None):
+  """The explicit test controller, otherwise the one modeld bound for this frame."""
+  if explicit is not None:
+    return explicit if getattr(explicit, "enabled", False) else None
+  bound = _BOUND.get()
+  if bound is None or not getattr(bound, "enabled", False):
+    return None
+  return bound
 
 
 class _PlanSample:
@@ -79,6 +96,8 @@ def _cruise(action, samples):
 class PathSteering:
   def __init__(self, enabled=False):
     self.enabled = bool(enabled)
+    self.frame_desire = 0
+    self.frame_dt = 0.0
     self._plans = []
     self._t = 0.0
     self._distance = 0.0

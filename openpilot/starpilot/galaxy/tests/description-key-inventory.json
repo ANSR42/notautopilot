@@ -64,6 +64,7 @@
   "PIPPreviewShowOnBlinker",
   "PauseLateralOnSignal",
   "PauseLateralSpeed",
+  "PathSteering",
   "PromptDistractedVolume",
   "PromptVolume",
   "RadarRecoveryAlert",

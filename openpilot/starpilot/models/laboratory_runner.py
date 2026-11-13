@@ -80,15 +80,19 @@ class LaboratoryPair:
   def get_action_from_model(self, outputs, previous, lat_action_t, long_action_t, v_ego,
                             path_steering=None, desire: int = 0, dt: float = 0.0):
     from openpilot.selfdrive.modeld.constants import LAT_SMOOTH_SECONDS
+    from openpilot.selfdrive.modeld.path_steering import active_controller
     LONG_SMOOTH_SECONDS = 0.3
     if self.failed or self._last_outputs is None:
       raise RuntimeError("Model Laboratory has no complete current frame")
     try:
       # Only the lateral role's plan may shape curvature. Passing the controller to both roles
       # would advance its history twice in one frame.
+      controller = active_controller(path_steering)
+      if controller is not None and path_steering is None:
+        desire, dt = controller.frame_desire, controller.frame_dt
       actions = []
       for value, model, steer in zip(self._last_outputs, (self.lateral, self.longitudinal),
-                                    (path_steering, None), strict=True):
+                                    (controller, None), strict=True):
         extra = {"path_steering": steer, "desire": desire, "dt": dt} if steer is not None else {}
         actions.append(action_from_outputs(value, model.behavior_version, previous, lat_action_t, long_action_t, v_ego,
                                            LAT_SMOOTH_SECONDS, LONG_SMOOTH_SECONDS, **extra))

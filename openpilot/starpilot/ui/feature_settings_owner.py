@@ -1023,9 +1023,9 @@ class FeatureSettingsOwner:
                                          self.authority("parked_preferences") and capability is not None))
     elif page == FeaturePage.TORQUE:
       title = "Steering and Torque"
+      rows.extend(FordBluePilotFeature(self).rows(parked))
       from openpilot.selfdrive.modeld.path_steering import KEY as PATH_STEERING_KEY, LABEL as PATH_STEERING_LABEL, REASON as PATH_STEERING_REASON
       rows.append(self._bool_row(PATH_STEERING_KEY, PATH_STEERING_LABEL, self.authority("preferences"), reason=PATH_STEERING_REASON))
-      rows.extend(FordBluePilotFeature(self).rows(parked))
       controller_row = self.controller.row()
       if controller_row is not None:
         rows.append(controller_row)

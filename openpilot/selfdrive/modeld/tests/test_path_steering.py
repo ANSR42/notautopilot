@@ -2,7 +2,9 @@
 
 import ast
 import struct
+from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pytest
@@ -28,7 +30,8 @@ def get_action_from_model(*args, **kwargs):
                "LONG_SMOOTH_SECONDS": 0.3, "LAT_SMOOTH_SECONDS": LAT_SMOOTH_SECONDS,
                "MIN_LAT_CONTROL_SPEED": 0.3}
   exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), namespace)
-  return namespace["get_action_from_model"](*args, **kwargs)
+  function = cast(Callable, namespace["get_action_from_model"])
+  return function(*args, **kwargs)
 
 
 def bits(value):

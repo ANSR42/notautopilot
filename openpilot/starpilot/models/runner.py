@@ -279,7 +279,11 @@ class CatalogModelState:
                             path_steering=None, desire: int = 0, dt: float = 0.0) -> log.ModelDataV2.Action:
     """modeld's action call: this catalog generation's units, with modeld's smoothing."""
     from openpilot.selfdrive.modeld.modeld import LAT_SMOOTH_SECONDS, LONG_SMOOTH_SECONDS
-    extra = {"path_steering": path_steering, "desire": desire, "dt": dt} if path_steering is not None else {}
+    from openpilot.selfdrive.modeld.path_steering import active_controller
+    controller = active_controller(path_steering)
+    if controller is not None and path_steering is None:
+      desire, dt = controller.frame_desire, controller.frame_dt
+    extra = {"path_steering": controller, "desire": desire, "dt": dt} if controller is not None else {}
     return action_from_outputs(outputs, self.behavior_version, previous, lat_action_t, long_action_t, v_ego,
                                LAT_SMOOTH_SECONDS, LONG_SMOOTH_SECONDS, **extra)
 
