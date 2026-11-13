@@ -18,6 +18,7 @@ from tinygrad.helpers import all_int, round_up
 from tinygrad.uop.ops import UOp
 if TYPE_CHECKING:
   from openpilot.starpilot.models.runtime_bridge.legacy_types import LegacyBuffer, LegacyUOpFactory
+import inspect
 import math
 import pickle
 import threading
@@ -61,6 +62,7 @@ from openpilot.selfdrive.modeld.parse_model_outputs import Parser
 from openpilot.selfdrive.modeld.fill_model_msg import fill_model_msg, fill_driving_model_data, fill_pose_msg, PublishState
 from openpilot.selfdrive.modeld.constants import LAT_SMOOTH_SECONDS, ModelConstants, Plan
 from openpilot.selfdrive.modeld.helpers import MODELS_DIR, chestnut_present, modeld_pkl_path, load_oob, wait_for_chestnut
+from openpilot.selfdrive.modeld.path_steering import PathSteering, PathSteeringPreferences
 
 
 SEND_RAW_PRED = os.getenv('SEND_RAW_PRED')
@@ -71,7 +73,8 @@ BIG_MODEL_TIMEOUT = 120
 
 
 def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,
-                          lat_action_t: float, long_action_t: float, v_ego: float) -> log.ModelDataV2.Action:
+                          lat_action_t: float, long_action_t: float, v_ego: float,
+                          path_steering=None, desire: int = 0, dt: float = 0.0) -> log.ModelDataV2.Action:
   if 'action' not in model_output:
     plan = model_output['plan'][0]
     desired_accel = get_accel_from_plan(plan[:,Plan.VELOCITY][:,0],
@@ -86,6 +89,9 @@ def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.
   else:
     desired_accel = model_output['action'][0,1]
     desired_curvature = model_output['action'][0,0] / (max(2.5, v_ego))**2
+    if path_steering is not None and path_steering.enabled:
+      desired_curvature = path_steering.adjust(desired_curvature, model_output.get('plan'), v_ego,
+                                              lat_action_t, desire, dt)
   stop = should_stop(v_ego, desired_accel)
   desired_accel = smooth_value(desired_accel, prev_action.desiredAcceleration, LONG_SMOOTH_SECONDS)
   if v_ego > MIN_LAT_CONTROL_SPEED:
@@ -96,6 +102,31 @@ def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.
   return log.ModelDataV2.Action(desiredCurvature=float(desired_curvature),
                                 desiredAcceleration=float(desired_accel),
                                 shouldStop=bool(stop))
+
+
+def _path_kwargs(model, controller, desire, dt) -> dict:
+  """Extra action arguments only while path steering is on and the model accepts them.
+
+  Leaving them off keeps the previous positional call, so a disabled toggle cannot
+  change the curvature a model publishes.
+  """
+  if controller is None or not controller.enabled:
+    return {}
+  try:
+    accepted = inspect.signature(model.get_action_from_model).parameters
+  except (TypeError, ValueError):
+    return {}
+  extra = {}
+  if "path_steering" in accepted:
+    extra["path_steering"] = controller
+  if "desire" in accepted:
+    try:
+      extra["desire"] = int(desire)
+    except (TypeError, ValueError):
+      extra["desire"] = 0
+  if "dt" in accepted:
+    extra["dt"] = dt
+  return extra
 
 
 def drop_chestnut() -> None:
@@ -517,6 +548,9 @@ def main(demo=False):
   lane_clock_guard = ClockEpochGuard(initial_mono_ns, initial_boot_ns, initial_skew_ns)
   DH = DesireHelper(runtime_lane_policy)
   navigation_turn = TurnIntent(params, CP)
+  path_preferences = PathSteeringPreferences(params)
+  path_controller = PathSteering()
+  path_frame_s = None
   lane_status_session = uuid.uuid4().hex
   lane_status_sequence = 0
 
@@ -611,12 +645,22 @@ def main(demo=False):
 
     model.lat_delay = lat_delay
     model.frame_drop_ratio = frame_drop_ratio
+    path_enabled = path_preferences.sample(time.monotonic_ns())
+    if path_enabled and not path_controller.enabled:
+      path_controller.reset()
+      path_frame_s = None
+    path_controller.enabled = path_enabled
+    frame_s = meta_main.timestamp_eof / 1e9
+    path_dt = DT_MDL if path_frame_s is None else max(0.0, frame_s - path_frame_s)
+    if path_enabled:
+      path_frame_s = frame_s
+    path_extra = _path_kwargs(model, path_controller, desire, path_dt)
     mt1 = time.perf_counter()
     try:
       send_chestnut = (chestnut_state is not None and
                        run_count % round(ModelConstants.MODEL_RUN_FREQ / SERVICE_LIST['chestnutGpuState'].frequency) == 0)
       model_output = model.run(bufs, transforms, inputs, chestnut_state.send if send_chestnut else None)
-      laboratory_action = (model.get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego)
+      laboratory_action = (model.get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego, **path_extra)
                            if isinstance(model, LaboratoryPair) else None)
     except Exception:
       if not model.chestnut:
@@ -656,7 +700,7 @@ def main(demo=False):
         assert laboratory_action is not None
         action = laboratory_action
       else:
-        action = model.get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego)
+        action = model.get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego, **path_extra)
       filter_action(action, prev_action, v_ego, subaru_tau)
       prev_action = action
       fill_model_msg(modelv2_send, model_output, action,

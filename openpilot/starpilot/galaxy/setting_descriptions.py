@@ -57,6 +57,8 @@ DESCRIPTIONS = {
                             'Leads, stops, curve limits and driver overrides retain priority.'),
   'TacoTune': ('Lowers cruise speed for a tight predicted curve while exactly one turn signal is on. ' +
                'Chill and Experimental both follow that lower limit, and braking stays within the planner comfort limits.'),
+  'PathSteering': ("Steers from the driving model's recent path at low speed while a turn is signalled, " +
+                   "and otherwise uses that path only to shape the model's steering. Fades out by about 29 mph."),
   'FasterLeadTakeoff': ('Improves launches from a stop and responds sooner when a lead starts moving. ' +
                         'Selected acceleration profiles, stop detection and vehicle limits still apply.'),
   'CustomPersonalities': 'Uses your following-time and jerk settings for the selected driving personality.',
