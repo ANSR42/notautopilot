@@ -61,6 +61,7 @@ from openpilot.selfdrive.modeld.parse_model_outputs import Parser
 from openpilot.selfdrive.modeld.fill_model_msg import fill_model_msg, fill_driving_model_data, fill_pose_msg, PublishState
 from openpilot.selfdrive.modeld.constants import LAT_SMOOTH_SECONDS, ModelConstants, Plan
 from openpilot.selfdrive.modeld.helpers import MODELS_DIR, chestnut_present, modeld_pkl_path, load_oob, wait_for_chestnut
+from openpilot.selfdrive.modeld.path_steering import PathSteering, PathSteeringPreferences, bind_path_steering
 
 
 SEND_RAW_PRED = os.getenv('SEND_RAW_PRED')
@@ -71,7 +72,8 @@ BIG_MODEL_TIMEOUT = 120
 
 
 def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,
-                          lat_action_t: float, long_action_t: float, v_ego: float) -> log.ModelDataV2.Action:
+                          lat_action_t: float, long_action_t: float, v_ego: float,
+                          path_steering=None, desire: int = 0, dt: float = 0.0) -> log.ModelDataV2.Action:
   if 'action' not in model_output:
     plan = model_output['plan'][0]
     desired_accel = get_accel_from_plan(plan[:,Plan.VELOCITY][:,0],
@@ -86,6 +88,13 @@ def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.
   else:
     desired_accel = model_output['action'][0,1]
     desired_curvature = model_output['action'][0,0] / (max(2.5, v_ego))**2
+    from openpilot.selfdrive.modeld.path_steering import active_controller
+    controller = active_controller(path_steering)
+    if controller is not None:
+      if path_steering is None:
+        desire, dt = controller.frame_desire, controller.frame_dt
+      desired_curvature = controller.adjust(desired_curvature, model_output.get('plan'), v_ego,
+                                           lat_action_t, desire, dt)
   stop = should_stop(v_ego, desired_accel)
   desired_accel = smooth_value(desired_accel, prev_action.desiredAcceleration, LONG_SMOOTH_SECONDS)
   if v_ego > MIN_LAT_CONTROL_SPEED:
@@ -517,6 +526,9 @@ def main(demo=False):
   lane_clock_guard = ClockEpochGuard(initial_mono_ns, initial_boot_ns, initial_skew_ns)
   DH = DesireHelper(runtime_lane_policy)
   navigation_turn = TurnIntent(params, CP)
+  path_preferences = PathSteeringPreferences(params)
+  path_controller = PathSteering()
+  path_frame_s = None
   lane_status_session = uuid.uuid4().hex
   lane_status_sequence = 0
 
@@ -611,6 +623,21 @@ def main(demo=False):
 
     model.lat_delay = lat_delay
     model.frame_drop_ratio = frame_drop_ratio
+    path_enabled = path_preferences.sample(time.monotonic_ns())
+    if path_enabled and not path_controller.enabled:
+      path_controller.reset()
+      path_frame_s = None
+    path_controller.enabled = path_enabled
+    frame_s = meta_main.timestamp_eof / 1e9
+    path_dt = DT_MDL if path_frame_s is None else max(0.0, frame_s - path_frame_s)
+    if path_enabled:
+      path_frame_s = frame_s
+      try:
+        path_controller.frame_desire = int(desire)
+      except (TypeError, ValueError):
+        path_controller.frame_desire = 0
+      path_controller.frame_dt = path_dt
+    bind_path_steering(path_controller if path_enabled else None)
     mt1 = time.perf_counter()
     try:
       send_chestnut = (chestnut_state is not None and

@@ -81,7 +81,7 @@ from openpilot.starpilot.curve_speed.actions import ACTION_KEYS as CURVE_ACTION_
 from openpilot.starpilot.controllers.toyota_cruise import capability as toyota_cruise_capability
 
 
-GLOBAL_BOOL_PREFERENCES = frozenset((LEAD_APPROACH_KEY, LEAD_TAKEOFF_KEY, NUDGE_KEY, "DisengageOnAccelerator", "TacoTune"))
+GLOBAL_BOOL_PREFERENCES = frozenset((LEAD_APPROACH_KEY, LEAD_TAKEOFF_KEY, NUDGE_KEY, "DisengageOnAccelerator", "TacoTune", "PathSteering"))
 
 BOOL_DEFAULTS = {
   "GMPedalLongitudinal": False, "ForceStops": False, "AlwaysAllowUploads": False, "TurnAssist": True,
@@ -101,6 +101,7 @@ BOOL_DEFAULTS = {
   LEAD_TAKEOFF_KEY: False,
   NUDGE_KEY: True,
   "TacoTune": True,
+  "PathSteering": False,
   "DisengageOnAccelerator": False,
   CURVE_MASTER_KEY: False, CURVE_NO_LEAD_KEY: False,
   "ShowCSCStatus": False,
@@ -1023,6 +1024,8 @@ class FeatureSettingsOwner:
     elif page == FeaturePage.TORQUE:
       title = "Steering and Torque"
       rows.extend(FordBluePilotFeature(self).rows(parked))
+      from openpilot.selfdrive.modeld.path_steering import KEY as PATH_STEERING_KEY, LABEL as PATH_STEERING_LABEL, REASON as PATH_STEERING_REASON
+      rows.append(self._bool_row(PATH_STEERING_KEY, PATH_STEERING_LABEL, self.authority("preferences"), reason=PATH_STEERING_REASON))
       controller_row = self.controller.row()
       if controller_row is not None:
         rows.append(controller_row)

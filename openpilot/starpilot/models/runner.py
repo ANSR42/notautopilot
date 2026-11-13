@@ -122,13 +122,16 @@ def validate_artifact(artifact: dict, version: str, camera_size: tuple[int, int]
 
 def action_from_outputs(outputs: dict[str, np.ndarray], version: str, previous: log.ModelDataV2.Action,
                         lat_action_t: float, long_action_t: float, v_ego: float,
-                        lat_smooth_seconds: float = 0.0, long_smooth_seconds: float = 0.3) -> log.ModelDataV2.Action:
+                        lat_smooth_seconds: float = 0.0, long_smooth_seconds: float = 0.3,
+                        *, path_steering=None, desire: int = 0, dt: float = 0.0) -> log.ModelDataV2.Action:
   """Preserve the catalog's generation-specific action units and v9 curvature."""
   if version not in SUPPORTED_VERSIONS or min(lat_action_t, long_action_t) <= 0:
     raise ValueError("invalid catalog model action contract")
   if version in ("v14", "v15", "v16"):
     curvature, acceleration = outputs["action"][0]
     curvature = curvature / (100.0 if version == "v14" else max(1.0, v_ego) ** 2)
+    if path_steering is not None and path_steering.enabled:
+      curvature = path_steering.adjust(curvature, outputs.get("plan"), v_ego, lat_action_t, desire, dt)
     stop = v_ego < 0.3 and acceleration < 0.1
   else:
     plan = outputs["plan"][0]
@@ -272,11 +275,17 @@ class CatalogModelState:
     return parsed
 
   def get_action_from_model(self, outputs: dict[str, np.ndarray], previous: log.ModelDataV2.Action,
-                            lat_action_t: float, long_action_t: float, v_ego: float) -> log.ModelDataV2.Action:
+                            lat_action_t: float, long_action_t: float, v_ego: float,
+                            path_steering=None, desire: int = 0, dt: float = 0.0) -> log.ModelDataV2.Action:
     """modeld's action call: this catalog generation's units, with modeld's smoothing."""
     from openpilot.selfdrive.modeld.modeld import LAT_SMOOTH_SECONDS, LONG_SMOOTH_SECONDS
+    from openpilot.selfdrive.modeld.path_steering import active_controller
+    controller = active_controller(path_steering)
+    if controller is not None and path_steering is None:
+      desire, dt = controller.frame_desire, controller.frame_dt
+    extra = {"path_steering": controller, "desire": desire, "dt": dt} if controller is not None else {}
     return action_from_outputs(outputs, self.behavior_version, previous, lat_action_t, long_action_t, v_ego,
-                               LAT_SMOOTH_SECONDS, LONG_SMOOTH_SECONDS)
+                               LAT_SMOOTH_SECONDS, LONG_SMOOTH_SECONDS, **extra)
 
   def warmup(self) -> None:
     frames = {name: np.zeros(self.frame_buf_size, dtype=np.uint8) for name in self.vision_input_names}

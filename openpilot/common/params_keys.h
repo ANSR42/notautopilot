@@ -232,6 +232,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"ExperimentalMode", {PERSISTENT, BOOL}},
     {"ExperimentalSpeedNudge", {PERSISTENT, BOOL, "1"}},
     {"TacoTune", {PERSISTENT, BOOL, "1"}},
+    {"PathSteering", {PERSISTENT, BOOL, "0"}},
     {"FirmwareQueryDone", {CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION, BOOL}},
     {"ForcePowerDown", {PERSISTENT, BOOL}},
     {"GitBranch", {PERSISTENT, STRING}},
