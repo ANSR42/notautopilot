@@ -99,8 +99,13 @@ class ModelsLayoutMici(NavScroller):
                                            description=tr("Adds a gentle nudge toward lane center on top of the model's own steering, stronger when " +
                                                           "lane lines are clear. Yields around obstacles. Not available with the Default model."))
 
+    self.path_steering_toggle = BigParamControl(
+      tr("path steering"), "PathSteering",
+      description=tr("At low speed, steer from the model's path while a lane-turn desire is on, and for a few seconds after. " +
+                     "Otherwise the path only smooths the model's action and will not start a turn. Fades out by about 29 mph."))
+
     self.main_items = [self.current_model_info, self.select_model_btn, self.cancel_download_btn, self.refresh_btn, self.clear_cache_btn,
-                       self.blendful_toggle]
+                       self.blendful_toggle, self.path_steering_toggle]
     self._scroller.add_widgets(self.main_items)
 
   @property
@@ -213,6 +218,7 @@ class ModelsLayoutMici(NavScroller):
   def show_event(self):
     super().show_event()
     self.blendful_toggle.refresh()
+    self.path_steering_toggle.refresh()
 
   def _update_state(self):
     super()._update_state()
