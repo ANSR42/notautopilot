@@ -106,13 +106,18 @@ class ModelsLayout(Widget):
                              " Yields around obstacles. Not available with the Default model.")
     self.blendful_toggle = toggle_item_sp(tr("Blendful (Alpha)"), self._blendful_desc, param="Blendful")
 
+    self._path_steering_desc = tr("At low speed, steer from the model's path while a lane-turn desire is on, and for a few seconds after. " +
+                                 "Otherwise the path only smooths the model's action and will not start a turn. Fades out by about 29 mph.")
+    self.path_steering_toggle = toggle_item_sp(tr("Path Steering"), self._path_steering_desc, param="PathSteering")
+
     self.camera_offset = option_item_sp(tr("Adjust Camera Offset"), "CameraOffset", -35, 35,
                                         tr("Virtually shift camera's perspective to move model's center to Left(+ values) or Right (- values)"),
                                         1, None, True, "", style.BUTTON_ACTION_WIDTH, None, True,
                                         lambda v: f"{v / 100:.2f} m")
 
     self.items = [self.small_model_item, self.big_model_item, self.cancel_download_item, self.download_item, self.refresh_item, self.clear_cache_item,
-                  self.blendful_toggle, self.lane_turn_desire_toggle, self.lane_turn_value_control, self.lagd_toggle, self.delay_control,
+                  self.blendful_toggle, self.path_steering_toggle, self.lane_turn_desire_toggle, self.lane_turn_value_control,
+                  self.lagd_toggle, self.delay_control,
                   self.camera_offset]
 
   def _update_lagd_description(self, lagd_toggle: bool):
@@ -325,6 +330,7 @@ class ModelsLayout(Widget):
     camera_offset: bool = ui_state.active_bundle is not None
 
     self.lane_turn_desire_toggle.action_item.set_state(turn_desire)
+    self.path_steering_toggle.action_item.set_state(ui_state.params.get_bool("PathSteering"))
     self.lane_turn_value_control.set_visible(turn_desire and advanced_controls)
     self.lagd_toggle.action_item.set_state(live_delay)
 

@@ -41,6 +41,7 @@ from openpilot.selfdrive.modeld.modeld import ChestnutGpuState
 from openpilot.sunnypilot.modeld_v2.fill_model_msg import fill_model_msg, fill_pose_msg, PublishState, get_curvature_from_output
 from openpilot.sunnypilot.modeld_v2.parse_model_outputs import Parser
 from openpilot.sunnypilot.modeld_v2.blendful import Blendful
+from openpilot.sunnypilot.modeld_v2.path_steering import PathSteering
 from openpilot.sunnypilot.modeld_v2.constants import ModelConstants, Plan
 from openpilot.sunnypilot.modeld_v2.meta_helper import load_meta_constants
 from openpilot.sunnypilot.modeld_v2.camera_offset_helper import CameraOffsetHelper
@@ -231,7 +232,8 @@ class ModelState(ModelStateBase):
 
   def get_action_from_model(self, model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,
                             lat_action_t: float, long_action_t: float, v_ego: float,
-                            blendful: Callable[[float], float] | None = None) -> log.ModelDataV2.Action:
+                            blendful: Callable[[float], float] | None = None,
+                            path_steering: PathSteering | None = None, desire: int = 0) -> log.ModelDataV2.Action:
     if 'action' not in model_output:
       plan = model_output['plan'][0]
       desired_accel = get_accel_from_plan(plan[:, Plan.VELOCITY][:, 0], plan[:, Plan.ACCELERATION][:, 0], self.constants.T_IDXS,
@@ -243,6 +245,12 @@ class ModelState(ModelStateBase):
     else:
       desired_accel = model_output['action'][0, 1]
       desired_curvature = model_output['action'][0, 0] / (max(2.5, v_ego))**2
+    if path_steering is not None:
+      # lat_action_t is the delay until this steering command arrives (actuator lag plus the frame pipeline).
+      desired_curvature = path_steering.update(
+        enabled=path_steering.enabled, has_action='action' in model_output, action_curvature=desired_curvature,
+        plan=model_output['plan'][0] if 'plan' in model_output else None, v_ego=v_ego, lat_action_t=lat_action_t,
+        desire=desire, dt=DT_MDL)
     if blendful is not None:
       desired_curvature += blendful(desired_curvature)
 
@@ -373,6 +381,8 @@ def main(demo=False):
   RELC = RoadEdgeLaneChangeController()
   blendful = Blendful()
   blendful_enabled = False
+  path_steering = PathSteering()
+  path_steering.enabled = params.get_bool("PathSteering")
 
   while True:
     # Keep receiving frames until we are at least 1 frame ahead of previous extra frame
@@ -417,6 +427,7 @@ def main(demo=False):
       model.PLANPLUS_CONTROL = params.get("PlanplusControl", return_default=True)
       camera_offset_helper.set_offset(params.get("CameraOffset", return_default=True))
       blendful_enabled = params.get_bool("Blendful")
+      path_steering.enabled = params.get_bool("PathSteering")
     lat_delay = model.lat_delay + model.LAT_SMOOTH_SECONDS
     if sm.updated["extrinsicsCalibration"] and sm.seen['narrowRoadCameraState'] and sm.seen['deviceState']:
       device_from_calib_euler = np.array(sm["extrinsicsCalibration"].rpyCalib, dtype=np.float32)
@@ -492,7 +503,8 @@ def main(demo=False):
         prev_action.desiredCurvature = sm['controlsState'].curvature
       blendful_active = desire == log.Desire.none and DH.lane_change_state == log.LaneChangeState.off
       action = model.get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego,
-                                           partial(blendful.update, model_output, v_ego, blendful_active, enabled=blendful_enabled))
+                                           partial(blendful.update, model_output, v_ego, blendful_active, enabled=blendful_enabled),
+                                           path_steering, int(desire))
       prev_action = action
       fill_model_msg(drivingdata_send, modelv2_send, model_output, action,
                      publish_state, meta_main.frame_id, meta_extra.frame_id, frame_id,

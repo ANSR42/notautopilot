@@ -2044,7 +2044,7 @@
         {
           "id": "model_behavior",
           "title": "Model Behavior",
-          "description": "Lane desire, Blendful lane centering, and lead-vehicle awareness tuning",
+          "description": "Lane desire, path steering, Blendful lane centering, and lead-vehicle awareness tuning",
           "items": [
             {
               "key": "Blendful",
@@ -2058,6 +2058,12 @@
                   "equals": true
                 }
               ]
+            },
+            {
+              "key": "PathSteering",
+              "widget": "toggle",
+              "title": "Path Steering",
+              "description": "At low speed, steer from the model's path while a lane-turn desire is on, and for a few seconds after. Otherwise the path only smooths the model's action and will not start a turn. Fades out by about 29 mph."
             },
             {
               "key": "LaneTurnDesire",
